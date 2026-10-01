@@ -35,6 +35,16 @@ export interface BubbleState {
   y: number;
   vx: number;
   vy: number;
+  fast?: boolean;
+}
+
+export interface BombState {
+  id: number;
+  x: number;
+  /** Center y. */
+  y: number;
+  fuse: number;
+  grounded: boolean;
 }
 
 export interface HarpoonState {
@@ -70,6 +80,7 @@ export type SimEvent =
   | { k: 'pickup'; p: number; type: PowerUpType; x: number; y: number }
   | { k: 'clear'; bonus: number[] }
   | { k: 'timeup' }
+  | { k: 'boom'; x: number; y: number; r: number }
   | { k: 'phase'; ph: MatchPhase };
 
 export type TickedEvent = SimEvent & { tick: number };

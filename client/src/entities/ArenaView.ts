@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { Rng, WORLD, type LevelConfig } from '@orb/shared';
+import { HAZARDS, Rng, WORLD, type LevelConfig } from '@orb/shared';
 import { shade } from '../assets/textures';
 import { VIEW } from '../config/clientConfig';
 
@@ -77,9 +77,9 @@ export class ArenaView {
     for (let y = bottom - 120; y <= bottom; y += 24) grid.lineBetween(0, y, WORLD.width, y);
     this.layer.add(grid);
 
-    // platforms
+    // static platforms (timed ones are drawn per frame by WorldLayers)
     const pg = s.add.graphics();
-    for (const p of level.platforms) {
+    for (const p of level.platforms.filter((q) => !q.cycle)) {
       const x = p.x;
       const y = top + p.y;
       pg.fillStyle(0x000000, 0.3);
@@ -106,6 +106,23 @@ export class ArenaView {
     f.fillStyle(0x000000, 0.35);
     f.fillRect(0, bottom + 4, WORLD.width, VIEW.height - bottom);
     this.layer.add(f);
+
+    // floor spikes
+    const sg = s.add.graphics();
+    for (const sp of level.spikes ?? []) {
+      sg.fillStyle(0xff3355, 0.18);
+      sg.fillRect(sp.x, bottom - HAZARDS.spikeHeight - 6, sp.w, HAZARDS.spikeHeight + 6);
+      const n = Math.max(1, Math.round(sp.w / 12));
+      const w = sp.w / n;
+      for (let i = 0; i < n; i++) {
+        const x0 = sp.x + i * w;
+        sg.fillStyle(0xd9d9e8, 1);
+        sg.fillTriangle(x0, bottom, x0 + w, bottom, x0 + w / 2, bottom - HAZARDS.spikeHeight);
+        sg.fillStyle(0xff3355, 1);
+        sg.fillTriangle(x0 + w * 0.35, bottom - HAZARDS.spikeHeight * 0.55, x0 + w * 0.65, bottom - HAZARDS.spikeHeight * 0.55, x0 + w / 2, bottom - HAZARDS.spikeHeight);
+      }
+    }
+    this.layer.add(sg);
 
     // frame
     const fr = s.add.graphics();

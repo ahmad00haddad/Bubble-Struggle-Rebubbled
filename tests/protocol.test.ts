@@ -91,7 +91,7 @@ describe('snapshot codec', () => {
 
 describe('levels', () => {
   it('ships at least 10 valid levels with rising difficulty', () => {
-    expect(LEVELS.length).toBeGreaterThanOrEqual(10);
+    expect(LEVELS.length).toBeGreaterThanOrEqual(15);
     for (const l of LEVELS) expect(validateLevel(l)).toEqual([]);
     const ids = new Set(LEVELS.map((l) => l.id));
     expect(ids.size).toBe(LEVELS.length);

@@ -43,22 +43,22 @@ export class LobbyScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setTint(0xffe066, 0xffe066, 0xff9f6b, 0xff9f6b);
     code.setInteractive({ useHandCursor: true }).on('pointerup', () => this.copy(session.code, 'Code copied!'));
-    this.add.text(cx, 168, 'Share this code with your friend — they choose JOIN ROOM.', TEXT.body(16, COLORS.textDim)).setOrigin(0.5);
+    this.add.text(cx, 168, 'Share this code with 1–3 friends — they choose JOIN ROOM.', TEXT.body(16, COLORS.textDim)).setOrigin(0.5);
 
-    for (let i = 0; i < 2; i++) {
-      const x = cx + (i === 0 ? -170 : 170);
-      const card = this.add.graphics({ x, y: 268 });
-      const sprite = this.add.image(x - 90, 272, TEXTURES.lancer(i, LANCER_FRAMES.idle)).setScale(1.1 / TEX_SCALE);
-      const name = this.add.text(x - 50, 248, '', TEXT.display(12, PLAYER_CSS[i])).setOrigin(0, 0.5);
-      const state = this.add.text(x - 50, 282, '', TEXT.body(17, COLORS.textDim)).setOrigin(0, 0.5);
+    for (let i = 0; i < PLAYER_COLORS.length; i++) {
+      const { x, y } = this.cardPos(i);
+      const card = this.add.graphics({ x, y });
+      const sprite = this.add.image(x - 108, y + 2, TEXTURES.lancer(i, LANCER_FRAMES.idle)).setScale(0.8 / TEX_SCALE);
+      const name = this.add.text(x - 80, y - 14, '', TEXT.display(10, PLAYER_CSS[i])).setOrigin(0, 0.5);
+      const state = this.add.text(x - 80, y + 14, '', TEXT.body(16, COLORS.textDim)).setOrigin(0, 0.5);
       this.seatViews.push({ name, state, sprite, card });
-      this.tweens.add({ targets: sprite, y: 266, duration: 600 + i * 120, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.tweens.add({ targets: sprite, y: y - 3, duration: 600 + i * 120, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
-    this.status = this.add.text(cx, 352, '', TEXT.body(19)).setOrigin(0.5);
-    this.startBtn = new Button(this, cx, 412, 'START', () => this.toggleReady(), { primary: true, width: 320 });
-    const copyLink = new Button(this, cx - 130, 482, 'COPY INVITE LINK', () => this.copy(this.inviteLink(), 'Invite link copied!'), { width: 250, fontSize: 11 });
-    const leave = new Button(this, cx + 130, 482, 'LEAVE ROOM', () => this.leave(), { width: 250, fontSize: 11 });
+    this.status = this.add.text(cx, 382, '', TEXT.body(19)).setOrigin(0.5);
+    this.startBtn = new Button(this, cx, 432, 'START', () => this.toggleReady(), { primary: true, width: 320 });
+    const copyLink = new Button(this, cx - 130, 500, 'COPY INVITE LINK', () => this.copy(this.inviteLink(), 'Invite link copied!'), { width: 250, fontSize: 11 });
+    const leave = new Button(this, cx + 130, 500, 'LEAVE ROOM', () => this.leave(), { width: 250, fontSize: 11 });
     new ButtonGroup(this, [this.startBtn, copyLink, leave], { onBack: () => this.leave() }).focus(0);
     this.net = this.add.text(VIEW.width - 12, VIEW.height - 10, '', TEXT.body(14, COLORS.textDim)).setOrigin(1, 1);
 
@@ -87,31 +87,35 @@ export class LobbyScene extends Phaser.Scene {
       return;
     }
     const me = this.session.slot;
-    room.seats.forEach((s, i) => {
+    room.seats.forEach((st, i) => {
       const v = this.seatViews[i];
-      const x = VIEW.width / 2 + (i === 0 ? -170 : 170);
+      if (!v) return;
       v.card.clear();
-      v.card.fillStyle(s ? 0x1a2357 : 0x10163d, 1);
-      v.card.fillRoundedRect(-150, -50, 300, 100, 14);
-      v.card.lineStyle(3, s?.ready ? 0x5cf2a0 : s ? PLAYER_COLORS[i] : 0x2e3b8c, 1);
-      v.card.strokeRoundedRect(-150, -50, 300, 100, 14);
-      v.card.x = x;
-      v.sprite.setAlpha(s ? 1 : 0.25);
-      v.name.setText(s ? `${s.name.toUpperCase()}${i === me ? ' (YOU)' : ''}` : `PLAYER ${i + 1}`);
-      if (!s) v.state.setText('waiting to join…').setColor(COLORS.textDim);
-      else if (!s.connected) v.state.setText('disconnected — reconnecting…').setColor(COLORS.bad);
-      else if (s.ready) v.state.setText('READY ✓').setColor(COLORS.good);
+      v.card.fillStyle(st ? 0x1a2357 : 0x10163d, 1);
+      v.card.fillRoundedRect(-150, -34, 300, 68, 12);
+      v.card.lineStyle(3, st?.ready ? 0x5cf2a0 : st ? PLAYER_COLORS[i] : 0x2e3b8c, 1);
+      v.card.strokeRoundedRect(-150, -34, 300, 68, 12);
+      v.sprite.setAlpha(st ? 1 : 0.25);
+      v.name.setText(st ? `${st.name.toUpperCase()}${i === me ? ' (YOU)' : ''}` : `PLAYER ${i + 1}`);
+      if (!st) v.state.setText('open seat').setColor(COLORS.textDim);
+      else if (!st.connected) v.state.setText('reconnecting…').setColor(COLORS.bad);
+      else if (st.ready) v.state.setText('READY ✓').setColor(COLORS.good);
       else v.state.setText('not ready').setColor(COLORS.textDim);
     });
     const mine = room.seats[me];
-    const other = room.seats[1 - me];
+    const others = room.seats.filter((st, i) => st && i !== me);
     this.startBtn.setText(mine?.ready ? 'READY ✓ (CANCEL)' : 'START');
-    if (!other) this.status.setText('Waiting for Player 2…').setColor(COLORS.text);
-    else if (!other.connected) this.status.setText(`${other.name} disconnected — waiting for them to come back…`).setColor(COLORS.bad);
-    else if (mine?.ready && !other.ready) this.status.setText(`Waiting for ${other.name} to press START…`).setColor(COLORS.text);
-    else if (!mine?.ready && other.ready) this.status.setText(`${other.name} is ready! Press START.`).setColor(COLORS.accentCss);
-    else if (mine?.ready && other.ready) this.status.setText('Both ready — starting!').setColor(COLORS.good);
-    else this.status.setText('Both players here. Press START when ready.').setColor(COLORS.text);
+    const waiting = others.filter((st) => st && !st.ready).map((st) => st!.name);
+    if (others.length === 0) this.status.setText('Waiting for at least one more player (up to 4)…').setColor(COLORS.text);
+    else if (others.some((st) => !st!.connected)) this.status.setText('A player disconnected — waiting for them…').setColor(COLORS.bad);
+    else if (mine?.ready && waiting.length) this.status.setText(`Waiting for ${waiting.join(', ')} to press START…`).setColor(COLORS.text);
+    else if (!mine?.ready && !waiting.length) this.status.setText('Everyone else is ready! Press START.').setColor(COLORS.accentCss);
+    else if (mine?.ready) this.status.setText('All ready — starting!').setColor(COLORS.good);
+    else this.status.setText(`${others.length + 1} players here. Everyone presses START to begin.`).setColor(COLORS.text);
+  }
+
+  private cardPos(i: number): { x: number; y: number } {
+    return { x: VIEW.width / 2 + (i % 2 === 0 ? -165 : 165), y: 236 + Math.floor(i / 2) * 82 };
   }
 
   private toggleReady(): void {

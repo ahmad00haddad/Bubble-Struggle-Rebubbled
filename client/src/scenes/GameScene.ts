@@ -21,6 +21,8 @@ import { REGISTRY, SCENES } from './keys';
 export interface GameSceneData {
   mode: 'solo' | 'online';
   nickname?: string;
+  /** Solo only: start at this level index (dev / level testing). */
+  startLevel?: number;
 }
 
 const PU_LABEL: Record<PowerUpType, string> = {
@@ -78,13 +80,13 @@ export class GameScene extends Phaser.Scene {
       session.on('error', this.onNetError, this);
     } else {
       this.session = null;
-      this.source = new LocalSource(data.nickname || 'Lancer');
+      this.source = new LocalSource(data.nickname || 'Lancer', data.startLevel ?? 0);
     }
 
     this.input2 = new InputController();
     this.arena = new ArenaView(this);
     this.layers = new WorldLayers(this);
-    this.players = [0, 1].map((s) => new PlayerView(this, s));
+    this.players = PLAYER_COLORS.map((_, s) => new PlayerView(this, s));
     this.hud = new Hud(this);
     this.overlay = this.add.container(0, 0).setDepth(100);
     this.bigText = this.add.text(VIEW.width / 2, VIEW.arenaY + 200, '', TEXT.title(64)).setOrigin(0.5).setDepth(90).setShadow(5, 6, '#1a0f3d', 0, false, true);
@@ -137,6 +139,7 @@ export class GameScene extends Phaser.Scene {
       this.arena.build(level);
       this.layers.clear();
       this.layers.orbColor = level.theme.orb;
+      this.layers.level = level;
       this.showLevelIntro(v.levelIndex, level.name);
     }
 
@@ -144,7 +147,7 @@ export class GameScene extends Phaser.Scene {
     this.layers.update(v, time);
     const names = this.source.names();
     this.players.forEach((pv, i) => pv.update(v.players[i], names[i] ?? `P${i + 1}`, i === this.source.localSlot && this.source.mode === 'online', delta, time));
-    const seats = this.session?.room?.seats.map((s) => ({ connected: !!s?.connected, active: !!s?.active }));
+    const seats = this.session?.room?.seats.map((s) => ({ present: !!s, connected: !!s?.connected, active: !!s?.active }));
     this.hud.update(v, names, this.source.localSlot, this.source.mode, level?.name ?? '', this.source.levelCount, seats);
     this.updateNetStatus();
 
@@ -215,6 +218,12 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'clear':
         this.clearBonus = e.bonus;
+        break;
+      case 'boom':
+        audio.play('boom');
+        this.burst(e.x, top + e.y, 0xff7a00, 46, 340);
+        this.burst(e.x, top + e.y, 0xffe066, 20, 200);
+        shake(320, 0.016);
         break;
       case 'timeup':
         audio.play('damage');

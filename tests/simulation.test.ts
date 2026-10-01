@@ -11,6 +11,7 @@ import {
   SCORING,
   TICK_RATE,
   WORLD,
+  platformActive,
   type PowerUpType,
   type SimEvent,
 } from '@orb/shared';
@@ -262,5 +263,60 @@ describe('Match flow', () => {
     expect(JSON.stringify(m.sim.bubbles)).toBe(before);
     m.resume();
     expect(m.phase).toBe('countdown');
+  });
+});
+
+describe('hazards', () => {
+  it('spikes hurt a Lancer standing on them', () => {
+    const s = sim({ spikes: [{ x: 230, w: 60 }], bubbles: [{ size: 0, x: 900, y: 60, velocityX: 0 }] });
+    s.setInput(0, INPUT.RIGHT, 1);
+    const ev = run(s, 20, (e) => e.some((x) => x.k === 'hurt'));
+    expect(ev.some((e) => e.k === 'hurt')).toBe(true);
+    expect(s.players[0].lives).toBe(PLAYER.startLives - 1);
+  });
+
+  it('fast orbs move 1.5x faster and children stay fast', () => {
+    const s = sim({ bubbles: [{ size: 2, x: 200, y: 200, velocityX: 100, fast: true }] });
+    expect(s.bubbles[0].vx).toBeCloseTo(150);
+    s.bubbles[0].vx = 0; // park it above the Lancer so the shot connects
+    s.setInput(0, INPUT.SHOOT, 1);
+    const ev = run(s, 30, (e) => e.some((x) => x.k === 'pop'));
+    expect(ev.some((e) => e.k === 'pop')).toBe(true);
+    expect(s.bubbles).toHaveLength(2);
+    expect(s.bubbles.every((b) => b.fast)).toBe(true);
+    expect(Math.abs(s.bubbles[0].vx)).toBeCloseTo(BUBBLE_SIZES[1].speedX * 1.5);
+  });
+
+  it('timed platforms appear and disappear on schedule', () => {
+    const plat = { x: 0, y: 200, w: 100, h: 16, cycle: { on: 2, off: 1 } };
+    expect(platformActive(plat, 0)).toBe(true);
+    expect(platformActive(plat, 2.5 * TICK_RATE)).toBe(false);
+    expect(platformActive(plat, 3.2 * TICK_RATE)).toBe(true);
+    expect(platformActive({ x: 0, y: 0, w: 1, h: 1 }, 999)).toBe(true);
+  });
+
+  it('a vanished platform lets orbs fall through', () => {
+    const lvl = { platforms: [{ x: 400, y: 300, w: 160, h: 16, cycle: { on: 0.1, off: 100 } }], bubbles: [{ size: 1 as const, x: 480, y: 250, velocityX: 0 }] };
+    const s = sim(lvl);
+    let maxY = 0;
+    for (let i = 0; i < 60; i++) {
+      s.step();
+      maxY = Math.max(maxY, s.bubbles[0].y);
+    }
+    expect(maxY).toBeGreaterThan(330); // passed through where the platform was
+  });
+
+  it('bombs drop, land and explode, hurting nearby Lancers', () => {
+    const s = sim({ bombs: { every: 100, fuse: 2, radius: 90, firstAt: 0.1 }, bubbles: [{ size: 0, x: 900, y: 60, velocityX: 0 }] });
+    s.rng.next = () => (200 - 40) / (WORLD.width - 80); // drop right on the player at x=200
+    const ev = run(s, 4 * TICK_RATE, (e) => e.some((x) => x.k === 'boom'));
+    expect(ev.find((e) => e.k === 'boom')).toMatchObject({ k: 'boom', r: 90 });
+    expect(s.players[0].lives).toBe(PLAYER.startLives - 1);
+    expect(s.bombs).toHaveLength(0);
+  });
+
+  it('four players get distinct spawn points', () => {
+    const s = sim({}, [true, true, true, true]);
+    expect(new Set(s.players.map((p) => p.x)).size).toBe(4);
   });
 });

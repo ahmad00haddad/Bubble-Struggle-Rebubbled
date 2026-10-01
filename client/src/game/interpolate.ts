@@ -1,4 +1,4 @@
-import { HARPOON, TICK_DT, advanceBubble, type LevelConfig, type Snapshot } from '@orb/shared';
+import { HARPOON, TICK_DT, activePlatforms, advanceBubble, orbSpeedMul, type LevelConfig, type Snapshot } from '@orb/shared';
 import type { ViewState } from './types';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -18,29 +18,34 @@ export function buildView(a: Snapshot, b: Snapshot | null, rt: number, level: Le
   const alpha = b ? Math.min(1, Math.max(0, (rt - a.tick) / span)) : 0;
   const dtTicks = Math.max(0, Math.min(rt - a.tick, b ? span : MAX_EXTRAPOLATE_TICKS));
   const moving = a.phase === 'playing';
-  const platforms = level?.platforms ?? [];
-  const speedMul = level?.difficulty.bubbleSpeed ?? 1;
+  const levelTicks = a.levelTicks + (moving ? dtTicks : 0);
+  const platforms = level ? activePlatforms(level, levelTicks) : [];
 
   return {
     phase: a.phase,
     phaseTicks: a.phaseTicks,
     timeLeftTicks: a.timeLeftTicks,
     levelIndex: a.levelIndex,
+    levelTicks,
     players: a.players.map((p) => {
       const q = b?.players[p.slot];
       const x = q && q.life === p.life ? lerp(p.x, q.x, alpha) : p.x;
       return { ...p, x };
     }),
     bubbles: a.bubbles.map((o) => {
-      if (!moving || dtTicks <= 0) return { id: o.id, size: o.size, x: o.x, y: o.y };
+      if (!moving || dtTicks <= 0 || !level) return { id: o.id, size: o.size, x: o.x, y: o.y, fast: o.fast };
       const c = { ...o };
-      advanceBubble(c, dtTicks * TICK_DT, platforms, speedMul);
-      return { id: c.id, size: c.size, x: c.x, y: c.y };
+      advanceBubble(c, dtTicks * TICK_DT, platforms, orbSpeedMul(level, o.fast));
+      return { id: c.id, size: c.size, x: c.x, y: c.y, fast: o.fast };
     }),
     harpoons: a.harpoons.map((h) => {
       const q = b?.harpoons.find((x) => x.id === h.id);
       const tipY = q ? lerp(h.tipY, q.tipY, alpha) : moving ? Math.max(0, h.tipY - HARPOON.speed * dtTicks * TICK_DT) : h.tipY;
       return { ...h, tipY };
+    }),
+    bombs: a.bombs.map((k) => {
+      const q = b?.bombs.find((x) => x.id === k.id);
+      return { ...k, y: q ? lerp(k.y, q.y, alpha) : k.y };
     }),
     powerups: a.powerups.map((u) => {
       const q = b?.powerups.find((x) => x.id === u.id);

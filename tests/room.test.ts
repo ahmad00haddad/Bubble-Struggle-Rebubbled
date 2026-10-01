@@ -87,18 +87,37 @@ describe('RoomCore', () => {
     expect(host.meta?.code).toBe('ABC234');
   });
 
-  it('seats two players and rejects a third with ROOM_FULL', () => {
+  it('seats up to four players and rejects a fifth with ROOM_FULL', () => {
     room.init('ABC234');
     expect(room.join(a, 'Ada', null)).toMatchObject({ ok: true, slot: 0 });
     expect(a.last('room')?.phase).toBe('WAITING_FOR_PLAYER');
     expect(room.join(b, 'Bo<b>', null)).toMatchObject({ ok: true, slot: 1 });
     expect(a.last('room')?.phase).toBe('PLAYER_JOINED');
     expect(a.last('room')?.seats[1]?.name).toBe('Bob');
-    const c = new FakeConn();
-    expect(room.join(c, 'Cy', null)).toEqual({ ok: false, code: 'ROOM_FULL' });
-    expect(c.last('error')?.code).toBe('ROOM_FULL');
-    expect(c.closed?.code).toBe(CLOSE_CODES.ROOM_FULL);
-    expect(room.status()).toMatchObject({ exists: true, players: 2, full: true });
+    expect(room.join(new FakeConn(), 'Cy', null)).toMatchObject({ ok: true, slot: 2 });
+    expect(room.join(new FakeConn(), 'Di', null)).toMatchObject({ ok: true, slot: 3 });
+    const e = new FakeConn();
+    expect(room.join(e, 'Ed', null)).toEqual({ ok: false, code: 'ROOM_FULL' });
+    expect(e.last('error')?.code).toBe('ROOM_FULL');
+    expect(e.closed?.code).toBe(CLOSE_CODES.ROOM_FULL);
+    expect(room.status()).toMatchObject({ exists: true, players: 4, full: true });
+  });
+
+  it('four players: match starts only when all seated players are ready', () => {
+    room.init('ABC234');
+    const cs = [a, b, new FakeConn(), new FakeConn()];
+    cs.forEach((c, i) => room.join(c, `P${i}`, null));
+    cs.slice(0, 3).forEach((c) => send(room, c, { t: 'ready', v: true }));
+    expect(room.match).toBeNull();
+    send(room, cs[3], { t: 'ready', v: true });
+    expect(room.match!.sim.players.filter((p) => p.active)).toHaveLength(4);
+    ticks(room, host, MATCH.countdownSeconds * TICK_RATE + 1);
+    send(room, cs[3], { t: 'in', s: 1, b: 1 });
+    ticks(room, host, 10);
+    expect(cs[0].lastSnap()!.players).toHaveLength(4);
+    expect(new Set(cs.map((c) => c.lastSnap()!.tick)).size).toBe(1);
+    const xs = room.match!.sim.players.map((p) => Math.round(p.x));
+    expect(new Set(xs).size).toBe(4); // distinct spawns
   });
 
   it('both ready → countdown → playing, with level + snapshots to both', () => {
@@ -282,7 +301,7 @@ describe('RoomCore', () => {
     const tokens = [a, b].map((c) => (c.sent.find((m) => m.t === 'welcome') as Extract<ServerMessage, { t: 'welcome' }>).token);
     // Durable Object hibernates and wakes with only the stored record.
     const woke = new RoomCore(host, host.meta, levels);
-    expect(woke.seats.every((s) => s && !s.ready)).toBe(true);
+    expect(woke.seats.filter(Boolean).every((s) => !s!.ready)).toBe(true);
     woke.restore(a, 0, tokens[0]);
     woke.restore(b, 1, tokens[1]);
     woke.onMessage(a, JSON.stringify({ t: 'rematch' }));

@@ -1,5 +1,6 @@
 import {
   BUBBLE_SIZES,
+  HAZARDS,
   HARPOON,
   INPUT,
   PHYSICS,
@@ -14,6 +15,7 @@ import {
 } from '../constants/game';
 import type { LevelConfig } from '../types/level';
 import type {
+  BombState,
   BubbleState,
   HarpoonState,
   PlayerState,
@@ -23,6 +25,7 @@ import type {
 } from '../types/state';
 import { advanceBubble, advanceHarpoon, advancePowerUp, circleRectOverlap, harpoonRect, movePlayerX, playerHitbox } from './physics';
 import { Rng } from './rng';
+import { activePlatforms, onSpikes, orbSpeedMul, spawnX } from './hazards';
 
 export interface SimOptions {
   levels: readonly LevelConfig[];
@@ -72,6 +75,8 @@ export class GameSimulation {
   bubbles: BubbleState[] = [];
   harpoons: HarpoonState[] = [];
   powerups: PowerUpState[] = [];
+  bombs: BombState[] = [];
+  private nextBombAt = Infinity;
   private nextId = 1;
   private placedSpawned = new Set<number>();
   private events: SimEvent[] = [];
@@ -101,6 +106,8 @@ export class GameSimulation {
     this.status = 'running';
     this.harpoons = [];
     this.powerups = [];
+    this.bombs = [];
+    this.nextBombAt = this.level.bombs ? (this.level.bombs.firstAt ?? this.level.bombs.every) * TICK_RATE : Infinity;
     this.placedSpawned.clear();
     const m = this.speedMul;
     this.bubbles = this.level.bubbles.map((s) => ({
@@ -109,10 +116,12 @@ export class GameSimulation {
       x: s.x,
       y: s.y,
       vx: (s.velocityX ?? BUBBLE_SIZES[s.size].speedX) * m,
-      vy: (s.velocityY ?? 0) * m,
+      vy: (s.velocityY ?? 0) * m * (s.fast ? HAZARDS.fastOrbMultiplier : 1),
+      ...(s.fast ? { fast: true } : {}),
     }));
+    for (const b of this.bubbles) if (b.fast) b.vx *= HAZARDS.fastOrbMultiplier;
     for (const p of this.players) {
-      p.x = this.level.playerSpawnPoints[p.slot] ?? WORLD.width / 2;
+      p.x = spawnX(this.level, p.slot);
       p.facing = 1;
       p.shootLatch = false;
       p.respawnTimer = 0;
@@ -156,7 +165,7 @@ export class GameSimulation {
     // Rejoining: drop back in at spawn with protection.
     if (p.lives <= 0) p.lives = PLAYER.reviveLives;
     p.life = 'alive';
-    p.x = this.level.playerSpawnPoints[slot] ?? WORLD.width / 2;
+    p.x = spawnX(this.level, slot);
     p.invuln = PLAYER.invulnAfterRespawn;
   }
 
@@ -187,7 +196,7 @@ export class GameSimulation {
     this.tick++;
     this.levelTicks++;
     const dt = TICK_DT;
-    const platforms = this.level.platforms;
+    const platforms = activePlatforms(this.level, this.levelTicks);
 
     this.timeLeftTicks--;
 
@@ -199,7 +208,7 @@ export class GameSimulation {
         p.respawnTimer -= dt;
         if (p.respawnTimer <= 0) {
           p.life = 'alive';
-          p.x = this.level.playerSpawnPoints[p.slot] ?? WORLD.width / 2;
+          p.x = spawnX(this.level, p.slot);
           p.invuln = PLAYER.invulnAfterRespawn;
           this.emit({ k: 'respawn', p: p.slot });
         }
@@ -231,7 +240,7 @@ export class GameSimulation {
     }
 
     // --- Orbs --------------------------------------------------------------
-    for (const b of this.bubbles) advanceBubble(b, dt, platforms, this.speedMul);
+    for (const b of this.bubbles) advanceBubble(b, dt, platforms, orbSpeedMul(this.level, b.fast));
 
     // --- Harpoons: travel, then hit test along the whole tether -----------
     const survivors: HarpoonState[] = [];
@@ -254,8 +263,11 @@ export class GameSimulation {
       if (!p.active || p.life !== 'alive' || p.invuln > 0) continue;
       const box = playerHitbox(p.x);
       const hit = this.bubbles.some((b) => circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius - 1, box));
-      if (hit) this.damagePlayer(p);
+      if (hit || onSpikes(this.level, p.x)) this.damagePlayer(p);
     }
+
+    // --- Bombs -------------------------------------------------------------
+    this.stepBombs(dt, platforms);
 
     // --- Power-ups ---------------------------------------------------------
     const elapsed = this.levelTicks * dt;
@@ -267,6 +279,11 @@ export class GameSimulation {
     });
     const keep: PowerUpState[] = [];
     for (const u of this.powerups) {
+      // A timed platform vanished under it: fall again.
+      const bottom = u.y + POWERUP.size / 2;
+      if (u.grounded && bottom < WORLD.height - 0.5 && !platforms.some((p) => Math.abs(p.y - bottom) < 1 && u.x >= p.x && u.x <= p.x + p.w)) {
+        u.grounded = false;
+      }
       advancePowerUp(u, dt, platforms);
       u.life -= dt;
       if (u.life <= 0) continue;
@@ -310,6 +327,48 @@ export class GameSimulation {
       this.status = 'timeup';
       this.emit({ k: 'timeup' });
     }
+  }
+
+  private stepBombs(dt: number, platforms: readonly { x: number; y: number; w: number; h: number }[]): void {
+    const cfg = this.level.bombs;
+    if (!cfg) return;
+    if (this.levelTicks >= this.nextBombAt) {
+      this.nextBombAt = this.levelTicks + cfg.every * TICK_RATE;
+      const x = 40 + this.rng.next() * (WORLD.width - 80);
+      this.bombs.push({ id: this.nextId++, x, y: HAZARDS.bombSize, fuse: cfg.fuse, grounded: false });
+    }
+    const half = HAZARDS.bombSize / 2;
+    const keep: BombState[] = [];
+    for (const b of this.bombs) {
+      if (!b.grounded) {
+        const oldBottom = b.y + half;
+        let bottom = oldBottom + HAZARDS.bombFallSpeed * dt;
+        for (const p of platforms) {
+          if (b.x >= p.x && b.x <= p.x + p.w && oldBottom <= p.y && bottom >= p.y) {
+            bottom = p.y;
+            b.grounded = true;
+          }
+        }
+        if (bottom >= WORLD.height) {
+          bottom = WORLD.height;
+          b.grounded = true;
+        }
+        b.y = bottom - half;
+      }
+      b.fuse -= dt;
+      if (b.fuse > 0) {
+        keep.push(b);
+        continue;
+      }
+      this.emit({ k: 'boom', x: Math.round(b.x), y: Math.round(b.y), r: cfg.radius });
+      for (const p of this.players) {
+        if (!p.active || p.life !== 'alive' || p.invuln > 0) continue;
+        const dx = p.x - b.x;
+        const dy = WORLD.height - PLAYER.hitboxHeight / 2 - b.y;
+        if (dx * dx + dy * dy <= cfg.radius * cfg.radius) this.damagePlayer(p);
+      }
+    }
+    this.bombs = keep;
   }
 
   /** Time ran out: every standing player loses a life. Returns true if anyone survives. */
@@ -358,9 +417,10 @@ export class GameSimulation {
       const m = this.speedMul;
       const vx = BUBBLE_SIZES[child].speedX * m;
       const vy = -PHYSICS.splitKickVy * m;
+      const f = b.fast ? HAZARDS.fastOrbMultiplier : 1;
       this.bubbles.push(
-        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: -vx, vy },
-        { id: this.nextId++, size: child, x: b.x, y: b.y, vx, vy },
+        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: -vx * f, vy: vy * f, ...(b.fast ? { fast: true } : {}) },
+        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: vx * f, vy: vy * f, ...(b.fast ? { fast: true } : {}) },
       );
     }
 

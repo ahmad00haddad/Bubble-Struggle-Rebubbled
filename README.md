@@ -1,9 +1,10 @@
 # ORB LANCERS
 
 An original, browser-based **online co-op** arcade game in the classic
-bubble-popping genre. Two *Lancers* (round-helmeted divers with tether
-harpoons) pop bouncing **orbs** that split into smaller orbs, across 10
-levels, on two different devices, in the same live game world.
+bubble-popping genre. Up to **four** *Lancers* (round-helmeted divers with tether
+harpoons) pop bouncing **orbs** that split into smaller orbs, across 15
+levels with hazards (floor spikes, fast red orbs, timed platforms, bombs),
+each player on their own device, in the same live game world.
 
 - **Client:** Phaser 3 + TypeScript + Vite
 - **Server:** Cloudflare Workers + Durable Objects (one object per room) + WebSockets (Hibernation API)
@@ -225,6 +226,25 @@ level clear 1000 · time bonus 10/s · survival (no hit) 500.
 
 ---
 
+## Hazards (levels 11–15)
+
+All optional fields on `LevelConfig`, simulated on the server:
+
+| Field | Effect |
+|-------|--------|
+| `spikes: [{ x, w }]` | Floor strip that hurts any Lancer standing on it |
+| bubble `fast: true` | Red orb, 1.5× speed; its children stay fast |
+| platform `cycle: { on, off, offset? }` | Platform appears/disappears on a timer (blinks 1 s before vanishing) |
+| `bombs: { every, fuse, radius, firstAt? }` | Bombs drop from the ceiling, land, and explode after `fuse` s |
+
+Tunables: `HAZARDS` in `shared/src/constants/game.ts`. Solo testing a level: `/?level=15` then PLAY SOLO.
+
+## 2–4 players
+
+Rooms hold up to 4 (`ROOM.maxPlayers`). A match starts when at least 2 are
+seated and everyone seated pressed START. Seats 3 and 4 spawn beside the
+level's two spawn points. Players can drop into a running match through a free seat.
+
 ## How to add a level
 
 Append an object to `shared/src/levels/levels.ts`:
@@ -349,7 +369,7 @@ Live demo of this pattern: `/embed-demo.html` on your Worker.
 
 ## Testing
 
-- `npm test`: 64 unit tests covering orb physics (floor/wall/platform bounces,
+- `npm test`: 71 unit tests covering orb physics (floor/wall/platform bounces,
   consistent heights), splitting, smallest-orb destruction, rising-edge shooting,
   tether limits, damage/shield/respawn/game over, every power-up, seeded drops,
   determinism, match flow (countdown → clear → next level → victory, time up,

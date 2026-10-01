@@ -12,7 +12,7 @@ const TIMED: { key: 'shield' | 'speed' | 'dbl'; type: PowerUpType }[] = [
   { key: 'speed', type: 'speedBoost' },
 ];
 
-interface Side {
+interface Row {
   name: Phaser.GameObjects.Text;
   score: Phaser.GameObjects.Text;
   hearts: Phaser.GameObjects.Image[];
@@ -20,15 +20,17 @@ interface Side {
   status: Phaser.GameObjects.Text;
   pu: Phaser.GameObjects.Image[];
   puBars: Phaser.GameObjects.Graphics;
+  stripe: Phaser.GameObjects.Rectangle;
   shownScore: number;
 }
 
 /**
- * Top bar: P1 (left) · timer + level (center) · P2 (right), with lives,
- * scores and active power-ups. Network status sits in the footer.
+ * Top bar for up to 4 Lancers: slots 0 and 2 on the left, 1 and 3 on the
+ * right, timer and level in the middle. With 2 or fewer players each side
+ * uses one tall row; with 3–4 players rows stack.
  */
 export class Hud {
-  private sides: Side[];
+  private rows: Row[];
   private timer: Phaser.GameObjects.Text;
   private levelText: Phaser.GameObjects.Text;
   private net: Phaser.GameObjects.Text;
@@ -41,37 +43,51 @@ export class Hud {
     g.fillRect(0, VIEW.hudHeight - 3, VIEW.width, 3);
     g.fillStyle(0x1a2357, 1);
     g.fillRoundedRect(VIEW.width / 2 - 92, 6, 184, 52, 10);
-    PLAYER_COLORS.forEach((c, i) => {
-      g.fillStyle(c, 1);
-      g.fillRect(i === 0 ? 0 : VIEW.width - 6, 0, 6, VIEW.hudHeight - 3);
-    });
 
-    this.sides = [0, 1].map((slot) => this.makeSide(slot));
+    this.rows = PLAYER_COLORS.map((_, slot) => this.makeRow(slot));
     this.timer = scene.add.text(VIEW.width / 2, 38, '0:00', TEXT.display(20)).setOrigin(0.5).setDepth(51);
     this.levelText = scene.add.text(VIEW.width / 2, 15, '', TEXT.display(8, COLORS.textDim)).setOrigin(0.5).setDepth(51);
     this.net = scene.add.text(VIEW.width - 12, VIEW.height - 10, '', TEXT.body(14, COLORS.textDim)).setOrigin(1, 1).setDepth(51);
   }
 
-  private makeSide(slot: number): Side {
+  private makeRow(slot: number): Row {
     const s = this.scene;
-    const left = slot === 0;
-    const x = left ? 18 : VIEW.width - 18;
+    const left = slot % 2 === 0;
     const ox = left ? 0 : 1;
-    const name = s.add.text(x, 8, '', TEXT.display(10, PLAYER_CSS[slot])).setOrigin(ox, 0).setDepth(51);
-    const score = s.add.text(left ? 330 : VIEW.width - 330, 10, '0', TEXT.display(18)).setOrigin(left ? 1 : 0, 0).setDepth(51);
-    const hearts = Array.from({ length: MAX_HEARTS }, (_, i) =>
-      s.add.image(x + (left ? 1 : -1) * (8 + i * 19), 38, TEXTURES.heart).setScale(1 / TEX_SCALE).setDepth(51),
-    );
-    const more = s.add.text(x + (left ? 1 : -1) * (MAX_HEARTS * 19 + 4), 38, '', TEXT.display(9)).setOrigin(ox, 0.5).setDepth(51);
-    const status = s.add.text(x, 38, '', TEXT.display(9, COLORS.textDim)).setOrigin(ox, 0.5).setDepth(51);
-    const pu = TIMED.map((t, i) =>
-      s.add.image((left ? 230 : VIEW.width - 230) + (left ? 1 : -1) * i * 30, 42, TEXTURES.powerUp(t.type)).setScale(0.8 / TEX_SCALE).setDepth(51),
-    );
+    const name = s.add.text(0, 0, '', TEXT.display(9, PLAYER_CSS[slot])).setOrigin(ox, 0.5).setDepth(51);
+    const score = s.add.text(0, 0, '', TEXT.display(13)).setOrigin(left ? 1 : 0, 0.5).setDepth(51);
+    const hearts = Array.from({ length: MAX_HEARTS }, () => s.add.image(0, 0, TEXTURES.heart).setScale(0.8 / TEX_SCALE).setDepth(51));
+    const more = s.add.text(0, 0, '', TEXT.display(8)).setOrigin(ox, 0.5).setDepth(51);
+    const status = s.add.text(0, 0, '', TEXT.display(8, COLORS.textDim)).setOrigin(ox, 0.5).setDepth(51);
+    const pu = TIMED.map((t) => s.add.image(0, 0, TEXTURES.powerUp(t.type)).setScale(0.65 / TEX_SCALE).setDepth(51));
     const puBars = s.add.graphics().setDepth(52);
-    return { name, score, hearts, more, status, pu, puBars, shownScore: 0 };
+    const stripe = s.add.rectangle(left ? 3 : VIEW.width - 3, 0, 6, 26, PLAYER_COLORS[slot]).setDepth(51);
+    return { name, score, hearts, more, status, pu, puBars, stripe, shownScore: 0 };
   }
 
-  update(v: ViewState, names: string[], localSlot: number, mode: 'solo' | 'online', levelName: string, levelCount: number, seatInfo?: { connected: boolean; active: boolean }[]): void {
+  /** Places one row at vertical center y. */
+  private layout(row: Row, slot: number, y: number): void {
+    const left = slot % 2 === 0;
+    const dir = left ? 1 : -1;
+    const at = (dx: number) => (left ? dx : VIEW.width - dx);
+    row.stripe.setPosition(at(3), y);
+    row.name.setPosition(at(14), y);
+    row.hearts.forEach((h, i) => h.setPosition(at(132) + dir * i * 15, y));
+    row.more.setPosition(at(132) + dir * MAX_HEARTS * 15, y);
+    row.status.setPosition(at(132), y);
+    row.pu.forEach((p, i) => p.setPosition(at(232) + dir * i * 24, y));
+    row.score.setPosition(at(378), y);
+  }
+
+  update(
+    v: ViewState,
+    names: string[],
+    localSlot: number,
+    mode: 'solo' | 'online',
+    levelName: string,
+    levelCount: number,
+    seatInfo?: { connected: boolean; active: boolean; present: boolean }[],
+  ): void {
     const secs = Math.max(0, Math.ceil(v.timeLeftTicks / TICK_RATE));
     this.timer.setText(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`);
     const low = secs <= 10 && v.phase === 'playing';
@@ -80,40 +96,48 @@ export class Hud {
     this.levelText.setText(`LEVEL ${v.levelIndex + 1}/${levelCount}`);
     this.levelText.setData('name', levelName);
 
-    this.sides.forEach((side, slot) => {
+    const present = (slot: number) => (mode === 'solo' ? slot === 0 : !!seatInfo?.[slot]?.present || !!v.players[slot]?.active);
+    const compact = present(2) || present(3);
+
+    this.rows.forEach((row, slot) => {
+      const lower = slot >= 2;
+      const visible = mode === 'solo' ? slot === 0 : compact || !lower;
+      const objs = [row.name, row.score, row.more, row.status, row.stripe, ...row.hearts, ...row.pu];
+      objs.forEach((o) => o.setVisible(visible));
+      row.puBars.clear();
+      if (!visible) return;
+      this.layout(row, slot, compact ? (lower ? 46 : 18) : 30);
+
       const p: ViewPlayer | undefined = v.players[slot];
       const seat = seatInfo?.[slot];
-      const present = !!p && (mode === 'solo' ? slot === 0 : !!seat);
-      const isSolo = mode === 'solo' && slot === 1;
-      side.name.setText(isSolo ? '' : present ? `${slot === localSlot ? '★ ' : ''}${(names[slot] ?? `P${slot + 1}`).toUpperCase()}` : `P${slot + 1}`);
+      const here = present(slot);
+      row.name.setText(here ? `${slot === localSlot ? '★ ' : ''}${(names[slot] ?? `P${slot + 1}`).toUpperCase()}`.slice(0, 13) : `P${slot + 1}`);
       let status = '';
-      if (isSolo) status = '';
-      else if (!present) status = mode === 'online' ? 'WAITING…' : '';
+      if (!here) status = mode === 'online' ? 'OPEN SEAT' : '';
       else if (seat && !seat.connected) status = 'DISCONNECTED';
       else if (p && !p.active) status = 'SITTING OUT';
       else if (p?.life === 'out') status = 'KNOCKED OUT';
-      side.status.setText(status);
+      row.status.setText(status);
 
-      const showStats = present && !!p && p.active && !isSolo;
-      const lives = showStats && !status ? p.lives : 0;
-      side.hearts.forEach((h, i) => h.setVisible(i < Math.min(lives, MAX_HEARTS)));
-      side.more.setText(lives > MAX_HEARTS ? `+${lives - MAX_HEARTS}` : '');
-      // rolling score counter
-      const target = present && p ? p.score : 0;
-      const step = (target - side.shownScore) * 0.25;
-      side.shownScore += step > 0 ? Math.ceil(step) : Math.floor(step);
-      if (Math.abs(target - side.shownScore) < 2) side.shownScore = target;
-      side.score.setText(present && !isSolo ? String(side.shownScore).padStart(6, '0') : '');
+      const live = here && !!p && p.active && !status;
+      const lives = live ? p!.lives : 0;
+      row.hearts.forEach((h, i) => h.setVisible(i < Math.min(lives, MAX_HEARTS)));
+      row.more.setText(lives > MAX_HEARTS ? `+${lives - MAX_HEARTS}` : '');
 
-      side.puBars.clear();
+      const target = here && p ? p.score : 0;
+      const step = (target - row.shownScore) * 0.25;
+      row.shownScore += step > 0 ? Math.ceil(step) : Math.floor(step);
+      if (Math.abs(target - row.shownScore) < 2) row.shownScore = target;
+      row.score.setText(here ? String(row.shownScore).padStart(6, '0') : '');
+
       TIMED.forEach((t, i) => {
-        const remaining = showStats ? p![t.key] : 0;
-        const icon = side.pu[i];
+        const remaining = live ? p![t.key] : 0;
+        const icon = row.pu[i];
         icon.setVisible(remaining > 0);
         if (remaining > 0) {
           icon.setAlpha(remaining < 3 && Math.floor(this.scene.time.now / 120) % 2 ? 0.35 : 1);
-          side.puBars.fillStyle(0xffffff, 0.8);
-          side.puBars.fillRect(icon.x - 10, 56, 20 * Math.min(1, remaining / 15), 3);
+          row.puBars.fillStyle(0xffffff, 0.8);
+          row.puBars.fillRect(icon.x - 8, icon.y + 10, 16 * Math.min(1, remaining / 15), 2);
         }
       });
     });

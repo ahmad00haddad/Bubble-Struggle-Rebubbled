@@ -132,14 +132,18 @@ export interface SnapMessage {
   /** Level ticks left on the clock. */
   tl: number;
   li: number;
+  /** Ticks since the level started (drives timed platforms on clients). */
+  lt: number;
   /** [slot, x, life, lives, score, flags, shield10, speed10, dbl10, lastSeq, ticksSince, facing] */
   p: number[][];
-  /** [id, size, x, y, vx, vy] */
+  /** [id, size, x, y, vx, vy, fast(0|1)] */
   b: number[][];
   /** [id, owner, x, tipY] */
   h: number[][];
   /** [id, typeIndex, x, y, life10] */
   u: number[][];
+  /** Bombs: [id, x, y, fuse10] (omitted when none) */
+  x?: number[][];
   e?: TickedEvent[];
 }
 

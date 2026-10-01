@@ -20,7 +20,7 @@ export class MenuScene extends Phaser.Scene {
 
     const cx = VIEW.width / 2;
     const items: [string, () => void, boolean?][] = [
-      ['PLAY SOLO', () => goTo(this, SCENES.game, { mode: 'solo', nickname: getSettings().nickname || 'Lancer' }), true],
+      ['PLAY SOLO', () => goTo(this, SCENES.game, { mode: 'solo', nickname: getSettings().nickname || 'Lancer', startLevel: Math.max(0, Number(new URLSearchParams(location.search).get('level') ?? 1) - 1) || 0 }), true],
       ['PLAY ONLINE', () => goTo(this, SCENES.online), true],
       ['HOW TO PLAY', () => goTo(this, SCENES.howTo)],
       ['SETTINGS', () => goTo(this, SCENES.settings)],

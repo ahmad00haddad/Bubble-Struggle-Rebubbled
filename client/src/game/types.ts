@@ -20,7 +20,9 @@ export interface ViewState {
   timeLeftTicks: number;
   levelIndex: number;
   players: ViewPlayer[];
-  bubbles: { id: number; size: BubbleSize; x: number; y: number }[];
+  levelTicks: number;
+  bubbles: { id: number; size: BubbleSize; x: number; y: number; fast?: boolean }[];
+  bombs: { id: number; x: number; y: number; fuse: number }[];
   harpoons: { id: number; owner: number; x: number; tipY: number }[];
   powerups: { id: number; type: PowerUpType; x: number; y: number; life: number }[];
 }

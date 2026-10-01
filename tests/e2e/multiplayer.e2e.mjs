@@ -121,9 +121,15 @@ async function main() {
   ok(A.room.seats[1]?.name === 'Bob' && B.room.seats[0]?.name === 'Alice', 'both see each other’s nickname');
 
   const C = new Bot('Carol');
-  const cerr = await C.connect(code);
-  ok(cerr?.code === 'ROOM_FULL', 'third player → ROOM_FULL');
-  ok((await C.waitClose()) === 4003, 'third socket closed with 4003');
+  const D3 = new Bot('Dan');
+  ok((await C.connect(code))?.slot === 2 && (await D3.connect(code))?.slot === 3, 'players 3 and 4 join (4-player rooms)');
+  const E = new Bot('Eve');
+  const cerr = await E.connect(code);
+  ok(cerr?.code === 'ROOM_FULL', 'fifth player → ROOM_FULL');
+  ok((await E.waitClose()) === 4003, 'fifth socket closed with 4003');
+  C.send({ t: 'leave' });
+  D3.send({ t: 'leave' });
+  ok((await A.waitFor((m) => m.t === 'room' && !m.seats[2] && !m.seats[3], 3000)) !== null, 'players 3 and 4 leave, seats freed');
 
   // --- ready → countdown → playing -------------------------------------------
   A.send({ t: 'ready', v: true });
@@ -274,7 +280,7 @@ async function main() {
       await sleep(50);
     }
     ok(PHASES[R1.snap?.ph] === 'gameOver' && PHASES[R2.snap?.ph] === 'gameOver', 'both clients reach GAME OVER (lives synchronized)');
-    ok(R1.snap.p.every((p) => p[3] === 0), 'all lives spent on the server');
+    ok(R1.snap.p.filter((p) => p[5] & 2).every((p) => p[3] === 0), 'all lives spent on the server');
     await R1.waitRoom('GAME_OVER', 3000);
     R1.send({ t: 'rematch' });
     const vote = await R2.waitFor((m) => m.t === 'room' && m.seats[0]?.rematch === true, 3000);
@@ -283,7 +289,7 @@ async function main() {
     ok(R1.room.phase === 'GAME_OVER', 'still GAME_OVER after a single vote');
     R2.send({ t: 'rematch' });
     ok((await R1.waitRoom('COUNTDOWN', 3000)) !== null, 'second vote → rematch countdown');
-    const fresh = await R1.waitFor((m) => m.t === 'snap' && m.p.every((p) => p[3] === 3 && p[4] === 0), 3000);
+    const fresh = await R1.waitFor((m) => m.t === 'snap' && m.p.filter((p) => p[5] & 2).every((p) => p[3] === 3 && p[4] === 0), 3000);
     ok(!!fresh, 'rematch resets lives and scores');
     R1.close();
     R2.close();

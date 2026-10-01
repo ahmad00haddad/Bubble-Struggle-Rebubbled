@@ -14,8 +14,12 @@ export const FONTS = {
   body: '"Chakra Petch", "Segoe UI", sans-serif',
 } as const;
 
-export const PLAYER_COLORS = [0xff6b5a, 0x47e5bc] as const;
-export const PLAYER_CSS = ['#ff6b5a', '#47e5bc'] as const;
+/** One color per seat (up to 4 Lancers). */
+export const PLAYER_COLORS = [0xff6b5a, 0x47e5bc, 0xb388ff, 0xffd166] as const;
+export const PLAYER_CSS = ['#ff6b5a', '#47e5bc', '#b388ff', '#ffd166'] as const;
+
+/** Fast orbs always use this hot color so players can spot them. */
+export const FAST_ORB_COLOR = 0xff2e4d;
 
 let serverOverride: string | null = null;
 

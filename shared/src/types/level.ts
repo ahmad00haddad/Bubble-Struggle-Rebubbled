@@ -15,6 +15,27 @@ export interface BubbleSpawn {
   velocityX?: number;
   /** Defaults to 0 (orb starts at its apex). Scaled by difficulty.bubbleSpeed. */
   velocityY?: number;
+  /** Fast orb: moves/bounces HAZARDS.fastOrbMultiplier faster. Children stay fast. */
+  fast?: boolean;
+}
+
+/** A platform. With `cycle` it appears/disappears on a timer (a "door"). */
+export interface PlatformConfig extends Rect {
+  cycle?: { on: number; off: number; offset?: number };
+}
+
+/** Floor spike strip: hurts any Lancer standing in [x, x + w]. */
+export interface SpikeStrip {
+  x: number;
+  w: number;
+}
+
+/** Bombs drop from the ceiling every `every` s, land, and explode after `fuse` s. */
+export interface BombConfig {
+  every: number;
+  fuse: number;
+  radius: number;
+  firstAt?: number;
 }
 
 export interface PlacedPowerUp {
@@ -47,9 +68,11 @@ export interface LevelConfig {
   name: string;
   /** Seconds. */
   timeLimit: number;
-  /** Spawn x for slot 0 and slot 1. */
+  /** Spawn x for slots 0 and 1. Slots 2 and 3 are derived (see spawnX). */
   playerSpawnPoints: [number, number];
-  platforms: Rect[];
+  platforms: PlatformConfig[];
+  spikes?: SpikeStrip[];
+  bombs?: BombConfig;
   bubbles: BubbleSpawn[];
   powerUps: LevelPowerUps;
   difficulty: { rating: number; bubbleSpeed: number };

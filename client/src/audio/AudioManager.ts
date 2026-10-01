@@ -12,6 +12,7 @@ export type SoundKey =
   | 'levelComplete'
   | 'victory'
   | 'gameOver'
+  | 'boom'
   | 'click'
   | 'tick'
   | 'go';
@@ -150,6 +151,10 @@ const RECIPES: Record<SoundKey, Recipe> = {
     arp(c, o, t + 0.5, [880, 1047, 1319, 1568], 0.1, 'triangle', 0.12);
   },
   gameOver: (c, o, t) => arp(c, o, t, [392, 349, 311, 262, 196], 0.16, 'triangle', 0.16),
+  boom: (c, o, t) => {
+    noise(c, o, t, 0.6, 0.45, 300);
+    tone(c, o, t, 'sawtooth', 160, 40, 0.5, 0.25);
+  },
   click: (c, o, t) => tone(c, o, t, 'square', 1200, 900, 0.04, 0.08),
   tick: (c, o, t) => tone(c, o, t, 'square', 660, 660, 0.12, 0.12),
   go: (c, o, t) => tone(c, o, t, 'square', 1320, 1320, 0.3, 0.13),

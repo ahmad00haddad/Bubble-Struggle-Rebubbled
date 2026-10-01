@@ -94,6 +94,19 @@ export const POWERUP = {
   speedMultiplier: 1.45,
 } as const;
 
+/** Level hazards (all optional per level). */
+export const HAZARDS = {
+  /** Fast orbs move and bounce this much faster than normal ones. */
+  fastOrbMultiplier: 1.5,
+  /** Visual height of floor spike strips (players touching them get hurt). */
+  spikeHeight: 14,
+  /** Bombs fall at this speed (px/s) until they land. */
+  bombFallSpeed: 210,
+  bombSize: 22,
+  /** Toggling platforms warn (blink) this many seconds before vanishing. */
+  platformWarnSeconds: 1,
+} as const;
+
 export const MATCH = {
   countdownSeconds: 3,
   levelCompleteSeconds: 3.5,
@@ -103,7 +116,9 @@ export const MATCH = {
 } as const;
 
 export const ROOM = {
-  maxPlayers: 2,
+  maxPlayers: 4,
+  /** Online matches need at least this many seated, ready players. */
+  minPlayersToStart: 2,
   codeLength: 6,
   disconnectGraceSeconds: 60,
   emptyRoomTtlSeconds: 120,

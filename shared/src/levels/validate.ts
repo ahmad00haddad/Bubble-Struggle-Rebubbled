@@ -1,5 +1,6 @@
 import { BUBBLE_SIZES, PLAYER, POWERUP_TYPES, WORLD } from '../constants/game';
 import { circleRectOverlap } from '../sim/physics';
+import { onSpikes, spawnX } from '../sim/hazards';
 import type { LevelConfig } from '../types/level';
 
 /** Returns a list of human-readable problems; empty means the level is valid. */
@@ -28,6 +29,16 @@ export function validateLevel(l: LevelConfig): string[] {
     if (b.x - r < 0 || b.x + r > WORLD.width || b.y - r < 0 || b.y + r > WORLD.height) errs.push(`${where}: bubble ${i} out of bounds`);
     if (l.platforms.some((p) => circleRectOverlap(b.x, b.y, r, p))) errs.push(`${where}: bubble ${i} overlaps a platform`);
   });
+  l.platforms.forEach((p, i) => {
+    if (p.cycle && !(p.cycle.on > 0 && p.cycle.off > 0)) errs.push(`${where}: platform ${i} cycle needs on > 0 and off > 0`);
+  });
+  (l.spikes ?? []).forEach((sp, i) => {
+    if (sp.w <= 0 || sp.x < 0 || sp.x + sp.w > WORLD.width) errs.push(`${where}: spike strip ${i} out of bounds`);
+  });
+  for (let slot = 0; slot < 4; slot++) {
+    if (onSpikes(l, spawnX(l, slot))) errs.push(`${where}: spawn for slot ${slot} is on spikes`);
+  }
+  if (l.bombs && !(l.bombs.every > 0 && l.bombs.fuse > 0 && l.bombs.radius > 0)) errs.push(`${where}: bombs need every, fuse, radius > 0`);
   const { dropChance, pool, placed } = l.powerUps;
   if (dropChance < 0 || dropChance > 1) errs.push(`${where}: dropChance must be in [0,1]`);
   for (const k of Object.keys(pool)) {

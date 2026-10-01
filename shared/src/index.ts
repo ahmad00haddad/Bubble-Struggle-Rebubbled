@@ -11,3 +11,4 @@ export * from './sim/Match';
 export * from './protocol/messages';
 export * from './protocol/codec';
 export * from './protocol/roomCode';
+export * from './sim/hazards';

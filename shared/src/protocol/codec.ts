@@ -32,6 +32,13 @@ export interface NetBubble {
   y: number;
   vx: number;
   vy: number;
+  fast?: boolean;
+}
+export interface NetBomb {
+  id: number;
+  x: number;
+  y: number;
+  fuse: number;
 }
 export interface NetHarpoon {
   id: number;
@@ -52,10 +59,12 @@ export interface Snapshot {
   phaseTicks: number;
   timeLeftTicks: number;
   levelIndex: number;
+  levelTicks: number;
   players: NetPlayer[];
   bubbles: NetBubble[];
   harpoons: NetHarpoon[];
   powerups: NetPowerUp[];
+  bombs: NetBomb[];
   events: TickedEvent[];
 }
 
@@ -68,6 +77,7 @@ export function encodeSnapshot(match: Match, events: TickedEvent[]): SnapMessage
     pt: match.phaseTicks,
     tl: sim.timeLeftTicks,
     li: sim.levelIndex,
+    lt: sim.levelTicks,
     p: sim.players.map((p) => [
       p.slot,
       r1(p.x),
@@ -82,10 +92,11 @@ export function encodeSnapshot(match: Match, events: TickedEvent[]): SnapMessage
       p.ticksSinceSeq,
       p.facing,
     ]),
-    b: sim.bubbles.map((b) => [b.id, b.size, r1(b.x), r1(b.y), r1(b.vx), r1(b.vy)]),
+    b: sim.bubbles.map((b) => [b.id, b.size, r1(b.x), r1(b.y), r1(b.vx), r1(b.vy), b.fast ? 1 : 0]),
     h: sim.harpoons.map((h) => [h.id, h.owner, r1(h.x), r1(h.tipY)]),
     u: sim.powerups.map((u) => [u.id, POWERUP_TYPES.indexOf(u.type), r1(u.x), r1(u.y), t10(u.life)]),
   };
+  if (sim.bombs.length) msg.x = sim.bombs.map((b) => [b.id, r1(b.x), r1(b.y), t10(b.fuse)]);
   if (events.length) msg.e = events;
   return msg;
 }
@@ -97,6 +108,7 @@ export function decodeSnapshot(m: SnapMessage): Snapshot {
     phaseTicks: m.pt,
     timeLeftTicks: m.tl,
     levelIndex: m.li,
+    levelTicks: m.lt ?? 0,
     players: m.p.map((a) => ({
       slot: a[0],
       x: a[1],
@@ -112,9 +124,10 @@ export function decodeSnapshot(m: SnapMessage): Snapshot {
       ticksSince: a[10],
       facing: a[11] < 0 ? -1 : 1,
     })),
-    bubbles: m.b.map((a) => ({ id: a[0], size: a[1] as BubbleSize, x: a[2], y: a[3], vx: a[4], vy: a[5] })),
+    bubbles: m.b.map((a) => ({ id: a[0], size: a[1] as BubbleSize, x: a[2], y: a[3], vx: a[4], vy: a[5], fast: a[6] === 1 })),
     harpoons: m.h.map((a) => ({ id: a[0], owner: a[1], x: a[2], tipY: a[3] })),
     powerups: m.u.map((a) => ({ id: a[0], type: POWERUP_TYPES[a[1]] ?? 'shield', x: a[2], y: a[3], life: a[4] / 10 })),
+    bombs: (m.x ?? []).map((a) => ({ id: a[0], x: a[1], y: a[2], fuse: a[3] / 10 })),
     events: m.e ?? [],
   };
 }
@@ -128,6 +141,7 @@ export function snapshotFromMatch(match: Match, events: TickedEvent[] = []): Sna
     phaseTicks: match.phaseTicks,
     timeLeftTicks: sim.timeLeftTicks,
     levelIndex: sim.levelIndex,
+    levelTicks: sim.levelTicks,
     players: sim.players.map((p) => ({
       slot: p.slot,
       x: p.x,
@@ -146,6 +160,7 @@ export function snapshotFromMatch(match: Match, events: TickedEvent[] = []): Sna
     bubbles: sim.bubbles.map((b) => ({ ...b })),
     harpoons: sim.harpoons.map((h) => ({ ...h })),
     powerups: sim.powerups.map((u) => ({ id: u.id, type: u.type, x: u.x, y: u.y, life: u.life })),
+    bombs: sim.bombs.map((b) => ({ id: b.id, x: b.x, y: b.y, fuse: b.fuse })),
     events,
   };
 }

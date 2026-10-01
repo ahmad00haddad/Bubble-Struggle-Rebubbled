@@ -64,6 +64,8 @@ interface Seat extends SeatMeta {
 
 export type JoinResult = { ok: true; slot: number; token: string } | { ok: false; code: ErrorCode };
 
+const emptySeats = <T>(): (T | null)[] => Array.from({ length: ROOM.maxPlayers }, () => null);
+
 const PHASE_MAP: Record<MatchPhase, RoomPhase> = {
   countdown: 'COUNTDOWN',
   playing: 'PLAYING',
@@ -98,7 +100,7 @@ const ERROR_TEXT: Record<ErrorCode, string> = {
  */
 export class RoomCore {
   meta: RoomMeta | null;
-  seats: (Seat | null)[] = [null, null];
+  seats: (Seat | null)[] = emptySeats();
   match: Match | null = null;
   private levels: readonly LevelConfig[];
   private loopRunning = false;
@@ -138,8 +140,8 @@ export class RoomCore {
   init(code: string): 'ok' | 'exists' {
     if (this.isOpen) return 'exists';
     const now = this.host.now();
-    this.meta = { code, createdAt: now, everJoined: false, seats: [null, null] };
-    this.seats = [null, null];
+    this.meta = { code, createdAt: now, everJoined: false, seats: emptySeats() };
+    this.seats = emptySeats();
     this.persist();
     this.scheduleAlarm();
     this.host.log('info', 'room.created', { code });
@@ -389,7 +391,7 @@ export class RoomCore {
 
   private maybeStartMatch(): void {
     const seated = this.seats.filter((s): s is Seat => !!s);
-    if (seated.length === ROOM.maxPlayers && seated.every((s) => s.ready && s.conn)) this.startMatch();
+    if (seated.length >= ROOM.minPlayersToStart && seated.every((s) => s.ready && s.conn)) this.startMatch();
   }
 
   private startMatch(): void {
@@ -553,7 +555,7 @@ export class RoomCore {
     }
     this.match = null;
     this.stopLoop();
-    this.seats = [null, null];
+    this.seats = emptySeats();
     this.meta = { code: this.meta.code, createdAt: this.meta.createdAt, everJoined: true, seats: [], expiredAt: this.host.now() };
     this.persist();
     this.scheduleAlarm();
@@ -611,7 +613,7 @@ export class RoomCore {
     if (!this.isOpen) return 'CLOSED';
     if (this.match) return PHASE_MAP[this.match.phase];
     const seated = this.seats.filter((s): s is Seat => !!s);
-    if (seated.length < ROOM.maxPlayers) return 'WAITING_FOR_PLAYER';
+    if (seated.length < ROOM.minPlayersToStart) return 'WAITING_FOR_PLAYER';
     return seated.every((s) => s.ready) ? 'READY' : 'PLAYER_JOINED';
   }
 
