@@ -1,0 +1,148 @@
+import { BUBBLE_SIZES, HARPOON, INPUT, PHYSICS, PLAYER, POWERUP, TICK_DT, WORLD, bounceVelocity } from '../constants/game';
+import type { Rect } from '../types/level';
+import type { BubbleState, PowerUpState } from '../types/state';
+
+export const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
+
+export function circleRectOverlap(cx: number, cy: number, r: number, rect: Rect): boolean {
+  const px = clamp(cx, rect.x, rect.x + rect.w);
+  const py = clamp(cy, rect.y, rect.y + rect.h);
+  const dx = cx - px;
+  const dy = cy - py;
+  return dx * dx + dy * dy < r * r;
+}
+
+/** Horizontal player movement. Shared by server simulation and client prediction. */
+export function movePlayerX(x: number, input: number, speedMul: number, dt = TICK_DT): number {
+  const dir = (input & INPUT.RIGHT ? 1 : 0) - (input & INPUT.LEFT ? 1 : 0);
+  if (dir === 0) return x;
+  const half = PLAYER.width / 2;
+  return clamp(x + dir * PLAYER.speed * speedMul * dt, half, WORLD.width - half);
+}
+
+export function playerHitbox(x: number): Rect {
+  return {
+    x: x - PLAYER.hitboxWidth / 2,
+    y: WORLD.height - PLAYER.hitboxHeight,
+    w: PLAYER.hitboxWidth,
+    h: PLAYER.hitboxHeight,
+  };
+}
+
+export function harpoonRect(x: number, tipY: number): Rect {
+  return { x: x - HARPOON.width / 2, y: tipY, w: HARPOON.width, h: WORLD.height - tipY };
+}
+
+function collideBubblePlatform(b: BubbleState, p: Rect, speedMul: number): void {
+  const r = BUBBLE_SIZES[b.size].radius;
+  const cx = clamp(b.x, p.x, p.x + p.w);
+  const cy = clamp(b.y, p.y, p.y + p.h);
+  const dx = b.x - cx;
+  const dy = b.y - cy;
+  const d2 = dx * dx + dy * dy;
+  if (d2 >= r * r) return;
+
+  let nx: number;
+  let ny: number;
+  if (d2 === 0) {
+    // Center inside the platform (only after extreme speeds): exit through the
+    // face of least penetration.
+    const pens = [b.x - p.x, p.x + p.w - b.x, b.y - p.y, p.y + p.h - b.y];
+    const m = Math.min(...pens);
+    nx = m === pens[0] ? -1 : m === pens[1] ? 1 : 0;
+    ny = nx !== 0 ? 0 : m === pens[2] ? -1 : 1;
+    if (nx < 0) b.x = p.x - r;
+    else if (nx > 0) b.x = p.x + p.w + r;
+    else if (ny < 0) b.y = p.y - r;
+    else b.y = p.y + p.h + r;
+  } else {
+    const d = Math.sqrt(d2);
+    nx = dx / d;
+    ny = dy / d;
+    b.x = cx + nx * r;
+    b.y = cy + ny * r;
+  }
+
+  if (Math.abs(ny) >= Math.abs(nx)) {
+    if (ny < 0) {
+      // Landed on top: consistent arcade bounce height above this surface.
+      if (b.vy > 0) b.vy = -bounceVelocity(b.size, speedMul);
+    } else if (b.vy < 0) {
+      b.vy = -b.vy;
+    }
+  } else if (nx * b.vx < 0) {
+    b.vx = -b.vx;
+  }
+}
+
+function integrateBubble(b: BubbleState, dt: number, platforms: readonly Rect[], speedMul: number): void {
+  const r = BUBBLE_SIZES[b.size].radius;
+  b.vy += PHYSICS.gravity * speedMul * speedMul * dt;
+  b.x += b.vx * dt;
+  b.y += b.vy * dt;
+
+  if (b.x - r < 0) {
+    b.x = r;
+    b.vx = Math.abs(b.vx);
+  } else if (b.x + r > WORLD.width) {
+    b.x = WORLD.width - r;
+    b.vx = -Math.abs(b.vx);
+  }
+  if (b.y + r >= WORLD.height) {
+    b.y = WORLD.height - r;
+    b.vy = -bounceVelocity(b.size, speedMul);
+  } else if (b.y - r < 0) {
+    b.y = r;
+    b.vy = Math.abs(b.vy);
+  }
+  for (const p of platforms) collideBubblePlatform(b, p, speedMul);
+}
+
+/**
+ * Advance an orb by `dt` seconds (any dt; the client uses fractional ticks for
+ * rendering). Internally substeps at a fixed maximum step for consistency.
+ */
+export function advanceBubble(b: BubbleState, dt: number, platforms: readonly Rect[], speedMul: number): void {
+  const maxStep = TICK_DT / PHYSICS.substeps;
+  let remaining = dt;
+  while (remaining > 1e-9) {
+    const step = Math.min(maxStep, remaining);
+    integrateBubble(b, step, platforms, speedMul);
+    remaining -= step;
+  }
+}
+
+/** Advance a falling power-up; lands on the floor or on top of a platform. */
+export function advancePowerUp(u: PowerUpState, dt: number, platforms: readonly Rect[]): void {
+  if (u.grounded) return;
+  const half = POWERUP.size / 2;
+  const oldBottom = u.y + half;
+  let newBottom = oldBottom + POWERUP.fallSpeed * dt;
+  for (const p of platforms) {
+    if (u.x >= p.x && u.x <= p.x + p.w && oldBottom <= p.y && newBottom >= p.y) {
+      newBottom = p.y;
+      u.grounded = true;
+    }
+  }
+  if (newBottom >= WORLD.height) {
+    newBottom = WORLD.height;
+    u.grounded = true;
+  }
+  u.y = newBottom - half;
+}
+
+/**
+ * Advance a harpoon tip. Returns the new tip y, or null when the tether hits the
+ * ceiling or the underside of a platform.
+ */
+export function advanceHarpoon(x: number, tipY: number, dt: number, platforms: readonly Rect[]): number | null {
+  const newTip = tipY - HARPOON.speed * dt;
+  const hw = HARPOON.width / 2;
+  for (const p of platforms) {
+    if (x + hw <= p.x || x - hw >= p.x + p.w) continue;
+    const bottom = p.y + p.h;
+    if (tipY >= bottom && newTip < bottom) return null;
+    if (tipY > p.y && tipY < bottom) return null;
+  }
+  return newTip <= 0 ? null : newTip;
+}

@@ -1,0 +1,54 @@
+import Phaser from 'phaser';
+import { BUBBLE_SIZES, CONTROLS, POWERUP_TYPES, describeKeys, type PowerUpType } from '@orb/shared';
+import { TEXTURES, TEX_SCALE } from '../assets/textures';
+import { VIEW } from '../config/clientConfig';
+import { Button, ButtonGroup } from '../ui/Button';
+import { COLORS, TEXT } from '../ui/theme';
+import { goTo, heading, menuBackdrop, panel } from '../ui/widgets';
+import { SCENES } from './keys';
+
+const PU_TEXT: Record<PowerUpType, string> = {
+  shield: 'Shield — absorbs one hit',
+  extraLife: 'Extra Life — +1 life',
+  extraTime: 'Extra Time — +20 s on the clock',
+  doubleHarpoon: 'Double Tether — two shots at once',
+  speedBoost: 'Speed Boost — run faster',
+};
+
+export class HowToScene extends Phaser.Scene {
+  constructor() {
+    super(SCENES.howTo);
+  }
+
+  create(): void {
+    this.cameras.main.fadeIn(200, 7, 10, 31);
+    menuBackdrop(this);
+    panel(this, VIEW.width / 2, 300, 860, 470);
+    heading(this, 'HOW TO PLAY', 96);
+
+    const left = 110;
+    const lines = [
+      'Pop every orb before the clock runs out.',
+      'Your tether shoots straight up — anything it touches gets hit.',
+      `Big orbs split in two: huge → large → medium → small → gone.`,
+      `Small orbs are worth the most (${BUBBLE_SIZES[0].points} pts). Don't let any orb touch you!`,
+      'Online: play co-op with a friend on another device using a room code.',
+    ];
+    lines.forEach((l, i) => this.add.text(left, 132 + i * 28, '• ' + l, TEXT.body(18)));
+
+    this.add.text(left, 286, 'CONTROLS', TEXT.display(14, COLORS.accentCss));
+    const c1 = CONTROLS.player1;
+    const c2 = CONTROLS.player2;
+    this.add.text(left, 312, `Move: ${describeKeys([...c1.left, ...c1.right])}  or  ${describeKeys([...c2.left, ...c2.right])}`, TEXT.body(17));
+    this.add.text(left, 338, `Shoot: ${describeKeys(c1.shoot)}  or  ${describeKeys(c2.shoot)}      Pause: ${describeKeys(CONTROLS.pause)}`, TEXT.body(17));
+
+    this.add.text(540, 286, 'POWER-UPS', TEXT.display(14, COLORS.accentCss));
+    POWERUP_TYPES.forEach((t, i) => {
+      this.add.image(556, 322 + i * 34, TEXTURES.powerUp(t)).setScale(1 / TEX_SCALE);
+      this.add.text(580, 311 + i * 34, PU_TEXT[t], TEXT.body(16));
+    });
+
+    const back = new Button(this, VIEW.width / 2, 556, 'BACK', () => goTo(this, SCENES.menu), { width: 220 });
+    new ButtonGroup(this, [back], { onBack: () => goTo(this, SCENES.menu) }).focus(0);
+  }
+}

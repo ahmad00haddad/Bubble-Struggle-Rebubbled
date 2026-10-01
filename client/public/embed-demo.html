@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Orb Lancers — embed demo</title>
+    <style>
+      body { margin: 0; background: #0f1226; color: #eef3ff; font-family: system-ui, sans-serif; }
+      header { padding: 12px 20px; }
+      #game { width: min(100vw, 1100px); height: min(70vh, 690px); margin: 0 auto; background: #070a1f; border-radius: 12px; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <header>A host page (like a Lovable route) mounting the game with <code>mountGame()</code>:</header>
+    <div id="game"></div>
+    <script type="module">
+      // In a real host, use your Worker URL: https://orb-lancers.<account>.workers.dev
+      const server = new URLSearchParams(location.search).get('server') ?? location.origin;
+      const { mountGame } = await import(`${server}/embed/orb-lancers.js`);
+      window.orbLancers = mountGame(document.getElementById('game'), { serverUrl: server });
+    </script>
+  </body>
+</html>

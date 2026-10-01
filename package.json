@@ -1,0 +1,29 @@
+{
+  "name": "orb-lancers",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client"
+  ],
+  "scripts": {
+    "dev": "node scripts/ensure-dist.mjs && concurrently -k -n worker,client -c magenta,cyan \"npm:dev:worker\" \"npm:dev:client\"",
+    "dev:worker": "node scripts/ensure-dist.mjs && wrangler dev --ip 0.0.0.0 --port 8787",
+    "dev:client": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "typecheck": "tsc -p shared --noEmit && tsc -p worker --noEmit && tsc -p client --noEmit && tsc -p tests --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node tests/e2e/multiplayer.e2e.mjs",
+    "deploy": "npm run build && wrangler deploy",
+    "cf-typegen": "wrangler types worker/worker-configuration.d.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261001.1",
+    "concurrently": "^10.0.5",
+    "typescript": "~5.9.2",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.146.0",
+    "ws": "^8.18.3"
+  }
+}

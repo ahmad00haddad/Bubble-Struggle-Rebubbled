@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Only for the global `crypto` type; shared code uses no DOM APIs.
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src"]
+}

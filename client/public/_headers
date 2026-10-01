@@ -1,0 +1,8 @@
+# Cloudflare Workers static-assets headers.
+# The embeddable module may be imported by other origins (e.g. a Lovable site).
+/embed/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=300
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

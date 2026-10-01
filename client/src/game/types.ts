@@ -1,0 +1,47 @@
+import type { BubbleSize, LevelConfig, LifeState, MatchPhase, PowerUpType, TickedEvent } from '@orb/shared';
+
+export interface ViewPlayer {
+  slot: number;
+  x: number;
+  life: LifeState;
+  lives: number;
+  score: number;
+  invuln: boolean;
+  active: boolean;
+  shield: number;
+  speed: number;
+  dbl: number;
+  facing: -1 | 1;
+}
+
+export interface ViewState {
+  phase: MatchPhase;
+  phaseTicks: number;
+  timeLeftTicks: number;
+  levelIndex: number;
+  players: ViewPlayer[];
+  bubbles: { id: number; size: BubbleSize; x: number; y: number }[];
+  harpoons: { id: number; owner: number; x: number; tipY: number }[];
+  powerups: { id: number; type: PowerUpType; x: number; y: number; life: number }[];
+}
+
+/**
+ * What the GameScene renders from. Solo and online modes implement the same
+ * interface, so rendering/UI code never branches on networking details.
+ */
+export interface GameSource {
+  readonly mode: 'solo' | 'online';
+  readonly localSlot: number;
+  readonly level: LevelConfig | null;
+  readonly levelCount: number;
+  names(): string[];
+  /** Advance local clocks/prediction and feed the current input bits. */
+  update(dtMs: number, inputBits: number): void;
+  view(): ViewState | null;
+  /** Gameplay events that are due for presentation (sound, particles, shake). */
+  drainEvents(): TickedEvent[];
+  requestPause(): void;
+  requestResume(): void;
+  requestRematch(): void;
+  destroy(): void;
+}
