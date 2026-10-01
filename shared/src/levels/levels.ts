@@ -13,7 +13,7 @@ const basicDrops = (dropChance: number, extra: Partial<LevelPowerUps> = {}): Lev
   ...extra,
 });
 
-export const LEVELS: LevelConfig[] = [
+const ALL_LEVELS: LevelConfig[] = [
   {
     id: 'dawn-drift',
     name: 'Dawn Drift',
@@ -291,4 +291,271 @@ export const LEVELS: LevelConfig[] = [
     difficulty: { rating: 15, bubbleSpeed: 1.25 },
     theme: { sky: [0x150515, 0x4a0f3a], accent: 0xff4d6d, orb: 0xffe066 },
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HARDCORE ARC — Levels 11–20
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  {
+    id: 'shatter-zone',
+    name: 'Shatter Zone',
+    timeLimit: 80,
+    playerSpawnPoints: [480, 480],
+    platforms: [
+      { x: 200, y: 310, w: 100, h: 16 },
+      { x: 660, y: 310, w: 100, h: 16 },
+    ],
+    bubbles: [
+      { size: 3, x: 160, y: 100 },
+      { size: 3, x: 800, y: 100, velocityX: -96 },
+      { size: 1, x: 480, y: 180 },
+    ],
+    powerUps: basicDrops(0.12),
+    difficulty: { rating: 11, bubbleSpeed: 1.3 },
+    theme: { sky: [0x0a0a1a, 0x2d1b4e], accent: 0xff6b6b, orb: 0x48dbfb },
+  },
+  {
+    id: 'funnel-run',
+    name: 'Funnel Run',
+    timeLimit: 90,
+    playerSpawnPoints: [150, 810],
+    platforms: [
+      { x: 0, y: 220, w: 200, h: 16 },
+      { x: 760, y: 220, w: 200, h: 16 },
+      { x: 350, y: 150, w: 260, h: 16 },
+      { x: 300, y: 320, w: 360, h: 16 },
+    ],
+    bubbles: [
+      { size: 3, x: 480, y: 80, velocityX: -96 },
+      { size: 2, x: 200, y: 180 },
+      { size: 2, x: 760, y: 180, velocityX: -108 },
+      { size: 1, x: 480, y: 260 },
+    ],
+    powerUps: basicDrops(0.11, { placed: [{ type: 'doubleHarpoon', x: 480, y: 100, delay: 10 }] }),
+    difficulty: { rating: 12, bubbleSpeed: 1.3 },
+    theme: { sky: [0x0d0d26, 0x3a1860], accent: 0xf0a500, orb: 0xc56cf0 },
+  },
+  {
+    id: 'ricochet-alley',
+    name: 'Ricochet Alley',
+    timeLimit: 75,
+    playerSpawnPoints: [380, 580],
+    platforms: [
+      { x: 100, y: 180, w: 80, h: 16 },
+      { x: 300, y: 260, w: 80, h: 16 },
+      { x: 500, y: 180, w: 80, h: 16 },
+      { x: 700, y: 260, w: 80, h: 16 },
+      { x: 400, y: 340, w: 160, h: 16 },
+    ],
+    bubbles: [
+      { size: 2, x: 120, y: 100 },
+      { size: 2, x: 360, y: 100, velocityX: -108 },
+      { size: 2, x: 600, y: 100 },
+      { size: 2, x: 840, y: 100, velocityX: -108 },
+    ],
+    powerUps: basicDrops(0.1),
+    difficulty: { rating: 13, bubbleSpeed: 1.35 },
+    theme: { sky: [0x12071f, 0x4a1942], accent: 0x7efff5, orb: 0xff6348 },
+  },
+  {
+    id: 'titan-fall',
+    name: 'Titan Fall',
+    timeLimit: 100,
+    playerSpawnPoints: [300, 660],
+    platforms: [
+      { x: 200, y: 200, w: 140, h: 16 },
+      { x: 620, y: 200, w: 140, h: 16 },
+      { x: 380, y: 300, w: 200, h: 16 },
+    ],
+    bubbles: [
+      { size: 3, x: 200, y: 90 },
+      { size: 3, x: 480, y: 90, velocityX: -96 },
+      { size: 3, x: 760, y: 90 },
+      { size: 1, x: 480, y: 250, velocityX: -120 },
+    ],
+    powerUps: basicDrops(0.12, {
+      placed: [
+        { type: 'shield', x: 480, y: 50, delay: 5 },
+        { type: 'extraTime', x: 480, y: 250, delay: 40 },
+      ],
+    }),
+    difficulty: { rating: 14, bubbleSpeed: 1.35 },
+    theme: { sky: [0x0b0c10, 0x1e3a5f], accent: 0xffd32a, orb: 0xff3f34 },
+  },
+  {
+    id: 'cage-match',
+    name: 'Cage Match',
+    timeLimit: 70,
+    playerSpawnPoints: [480, 480],
+    platforms: [
+      { x: 0, y: 160, w: 120, h: 16 },
+      { x: 840, y: 160, w: 120, h: 16 },
+      { x: 200, y: 280, w: 100, h: 16 },
+      { x: 420, y: 200, w: 120, h: 16 },
+      { x: 660, y: 280, w: 100, h: 16 },
+    ],
+    bubbles: [
+      { size: 2, x: 100, y: 80 },
+      { size: 2, x: 300, y: 120, velocityX: -108 },
+      { size: 2, x: 500, y: 80 },
+      { size: 2, x: 700, y: 120, velocityX: -108 },
+      { size: 2, x: 860, y: 80 },
+    ],
+    powerUps: basicDrops(0.08),
+    difficulty: { rating: 15, bubbleSpeed: 1.4 },
+    theme: { sky: [0x1a0000, 0x5c0000], accent: 0xff4757, orb: 0xffa502 },
+  },
+  {
+    id: 'meteor-shower',
+    name: 'Meteor Shower',
+    timeLimit: 80,
+    playerSpawnPoints: [200, 760],
+    platforms: [
+      { x: 150, y: 230, w: 80, h: 16 },
+      { x: 370, y: 170, w: 80, h: 16 },
+      { x: 510, y: 170, w: 80, h: 16 },
+      { x: 730, y: 230, w: 80, h: 16 },
+    ],
+    bubbles: [
+      { size: 1, x: 100, y: 80 },
+      { size: 1, x: 250, y: 100, velocityX: -120 },
+      { size: 1, x: 400, y: 80 },
+      { size: 1, x: 560, y: 100, velocityX: -120 },
+      { size: 1, x: 710, y: 80 },
+      { size: 1, x: 860, y: 100, velocityX: -120 },
+      { size: 0, x: 180, y: 300 },
+      { size: 0, x: 340, y: 280, velocityX: -132 },
+      { size: 0, x: 500, y: 300 },
+      { size: 0, x: 620, y: 280, velocityX: -132 },
+      { size: 0, x: 780, y: 300 },
+      { size: 0, x: 900, y: 280, velocityX: -132 },
+    ],
+    powerUps: basicDrops(0.06),
+    difficulty: { rating: 16, bubbleSpeed: 1.45 },
+    theme: { sky: [0x0a0a0a, 0x2c2c54], accent: 0xf8a5c2, orb: 0x63cdda },
+  },
+  {
+    id: 'iron-maze',
+    name: 'Iron Maze',
+    timeLimit: 120,
+    playerSpawnPoints: [100, 860],
+    platforms: [
+      { x: 0, y: 160, w: 180, h: 16 },
+      { x: 250, y: 250, w: 120, h: 16 },
+      { x: 420, y: 160, w: 120, h: 16 },
+      { x: 590, y: 250, w: 120, h: 16 },
+      { x: 780, y: 160, w: 180, h: 16 },
+      { x: 350, y: 350, w: 260, h: 16 },
+    ],
+    bubbles: [
+      { size: 3, x: 130, y: 80 },
+      { size: 3, x: 830, y: 80, velocityX: -96 },
+      { size: 2, x: 350, y: 120 },
+      { size: 2, x: 610, y: 120, velocityX: -108 },
+      { size: 1, x: 480, y: 300, velocityX: -120 },
+      { size: 1, x: 480, y: 300 },
+    ],
+    powerUps: basicDrops(0.1, {
+      placed: [
+        { type: 'doubleHarpoon', x: 480, y: 110, delay: 8 },
+        { type: 'extraTime', x: 480, y: 300, delay: 50 },
+      ],
+    }),
+    difficulty: { rating: 17, bubbleSpeed: 1.45 },
+    theme: { sky: [0x0c0c14, 0x1b1b2f], accent: 0xc4e538, orb: 0xe15f41 },
+  },
+  {
+    id: 'supernova',
+    name: 'Supernova',
+    timeLimit: 90,
+    playerSpawnPoints: [480, 480],
+    platforms: [
+      { x: 100, y: 200, w: 100, h: 16 },
+      { x: 760, y: 200, w: 100, h: 16 },
+      { x: 300, y: 300, w: 80, h: 16 },
+      { x: 580, y: 300, w: 80, h: 16 },
+      { x: 420, y: 140, w: 120, h: 16 },
+    ],
+    bubbles: [
+      { size: 3, x: 160, y: 80 },
+      { size: 3, x: 480, y: 60, velocityX: -96 },
+      { size: 3, x: 800, y: 80 },
+      { size: 2, x: 300, y: 240 },
+      { size: 2, x: 660, y: 240, velocityX: -108 },
+      { size: 1, x: 480, y: 380 },
+    ],
+    powerUps: basicDrops(0.08, { placed: [{ type: 'shield', x: 480, y: 90, delay: 3 }] }),
+    difficulty: { rating: 18, bubbleSpeed: 1.55 },
+    theme: { sky: [0x0d0221, 0x380036], accent: 0xffffff, orb: 0xff2e63 },
+  },
+  {
+    id: 'death-waltz',
+    name: 'Death Waltz',
+    timeLimit: 80,
+    playerSpawnPoints: [480, 480],
+    platforms: [
+      { x: 50, y: 170, w: 100, h: 16 },
+      { x: 220, y: 260, w: 100, h: 16 },
+      { x: 400, y: 170, w: 160, h: 16 },
+      { x: 640, y: 260, w: 100, h: 16 },
+      { x: 810, y: 170, w: 100, h: 16 },
+      { x: 300, y: 350, w: 360, h: 16 },
+    ],
+    bubbles: [
+      { size: 3, x: 120, y: 80 },
+      { size: 3, x: 400, y: 60, velocityX: -96 },
+      { size: 3, x: 700, y: 80 },
+      { size: 2, x: 250, y: 200, velocityX: -108 },
+      { size: 2, x: 480, y: 300 },
+      { size: 2, x: 710, y: 200 },
+      { size: 1, x: 100, y: 400 },
+      { size: 1, x: 860, y: 400, velocityX: -120 },
+    ],
+    powerUps: basicDrops(0.07, {
+      placed: [
+        { type: 'doubleHarpoon', x: 480, y: 120, delay: 2 },
+        { type: 'extraLife', x: 480, y: 300, delay: 30 },
+      ],
+    }),
+    difficulty: { rating: 19, bubbleSpeed: 1.6 },
+    theme: { sky: [0x0a0005, 0x3d0012], accent: 0xff0055, orb: 0xffd700 },
+  },
+  {
+    id: 'extinction',
+    name: 'EXTINCTION',
+    timeLimit: 90,
+    playerSpawnPoints: [480, 480],
+    platforms: [
+      { x: 0, y: 180, w: 140, h: 16 },
+      { x: 200, y: 280, w: 100, h: 16 },
+      { x: 380, y: 180, w: 200, h: 16 },
+      { x: 660, y: 280, w: 100, h: 16 },
+      { x: 820, y: 180, w: 140, h: 16 },
+      { x: 300, y: 370, w: 360, h: 16 },
+    ],
+    bubbles: [
+      { size: 3, x: 120, y: 70 },
+      { size: 3, x: 480, y: 50, velocityX: -96 },
+      { size: 3, x: 840, y: 70 },
+      { size: 2, x: 200, y: 220 },
+      { size: 2, x: 400, y: 120, velocityX: -108 },
+      { size: 2, x: 600, y: 220 },
+      { size: 2, x: 760, y: 120, velocityX: -108 },
+    ],
+    powerUps: basicDrops(0.05, {
+      placed: [
+        { type: 'shield', x: 480, y: 130, delay: 1 },
+        { type: 'doubleHarpoon', x: 250, y: 230, delay: 5 },
+        { type: 'extraLife', x: 710, y: 230, delay: 45 },
+      ],
+    }),
+    difficulty: { rating: 20, bubbleSpeed: 1.7 },
+    theme: { sky: [0x000000, 0x1a0000], accent: 0xff0000, orb: 0xff0000 },
+  },
 ];
+
+/**
+ * Play order: by difficulty rating (stable, so equal ratings keep file order).
+ * Hazard levels are interleaved with the hardcore arc this way.
+ */
+export const LEVELS: LevelConfig[] = [...ALL_LEVELS].sort((x, y) => x.difficulty.rating - y.difficulty.rating);

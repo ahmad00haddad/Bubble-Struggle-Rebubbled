@@ -2,7 +2,7 @@
 
 An original, browser-based **online co-op** arcade game in the classic
 bubble-popping genre. Up to **four** *Lancers* (round-helmeted divers with tether
-harpoons) pop bouncing **orbs** that split into smaller orbs, across 15
+harpoons) pop bouncing **orbs** that split into smaller orbs, across 25
 levels with hazards (floor spikes, fast red orbs, timed platforms, bombs),
 each player on their own device, in the same live game world.
 
@@ -226,7 +226,7 @@ level clear 1000 · time bonus 10/s · survival (no hit) 500.
 
 ---
 
-## Hazards (levels 11–15)
+## Hazards
 
 All optional fields on `LevelConfig`, simulated on the server:
 
@@ -237,7 +237,7 @@ All optional fields on `LevelConfig`, simulated on the server:
 | platform `cycle: { on, off, offset? }` | Platform appears/disappears on a timer (blinks 1 s before vanishing) |
 | `bombs: { every, fuse, radius, firstAt? }` | Bombs drop from the ceiling, land, and explode after `fuse` s |
 
-Tunables: `HAZARDS` in `shared/src/constants/game.ts`. Solo testing a level: `/?level=15` then PLAY SOLO.
+Tunables: `HAZARDS` in `shared/src/constants/game.ts`. Solo testing a level: `/?level=19` then PLAY SOLO. Levels play in order of `difficulty.rating`.
 
 ## 2–4 players
 
