@@ -87,6 +87,10 @@ export class NetSession extends Phaser.Events.EventEmitter {
     if (seq !== null) this.client.send({ t: 'in', s: seq, b: bits });
   }
 
+  /** Host only: switch chaos pickups on or off before the match starts. */
+  setChaos(v: boolean): void {
+    this.client.send({ t: 'chaos', v });
+  }
   setReady(v: boolean): void {
     this.client.send({ t: 'ready', v });
   }

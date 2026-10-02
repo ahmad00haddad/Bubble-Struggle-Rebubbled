@@ -5,6 +5,7 @@ import { audio } from '../audio/AudioManager';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
 import { getSettings } from '../config/settings';
 import { ArenaView } from '../entities/ArenaView';
+import { FxLayer } from '../entities/FxLayer';
 import { PlayerView } from '../entities/PlayerView';
 import { WorldLayers } from '../entities/WorldLayers';
 import { LocalSource } from '../game/LocalSource';
@@ -41,6 +42,7 @@ export class GameScene extends Phaser.Scene {
   private input2!: InputController;
   private arena!: ArenaView;
   private layers!: WorldLayers;
+  private fx!: FxLayer;
   private players!: PlayerView[];
   private hud!: Hud;
   private overlay!: Phaser.GameObjects.Container;
@@ -88,6 +90,7 @@ export class GameScene extends Phaser.Scene {
     this.input2 = new InputController();
     this.arena = new ArenaView(this);
     this.layers = new WorldLayers(this);
+    this.fx = new FxLayer(this);
     this.players = PLAYER_COLORS.map((_, s) => new PlayerView(this, s));
     this.hud = new Hud(this);
     this.overlay = this.add.container(0, 0).setDepth(100);
@@ -140,6 +143,7 @@ export class GameScene extends Phaser.Scene {
       this.levelId = level.id + v.levelIndex;
       this.arena.build(level);
       this.layers.clear();
+      this.fx.clear();
       this.layers.orbColor = level.theme.orb;
       this.layers.level = level;
       this.showLevelIntro(v.levelIndex, level.name);
@@ -147,6 +151,7 @@ export class GameScene extends Phaser.Scene {
 
     if (v.phase === 'gameOver' || v.phase === 'victory') v.harpoons = [];
     this.layers.update(v, time);
+    this.fx.update(v, time);
     const names = this.source.names();
     this.players.forEach((pv, i) => pv.update(v.players[i], names[i] ?? `P${i + 1}`, i === this.source.localSlot && this.source.mode === 'online', delta, time));
     const seats = this.session?.room?.seats.map((s) => ({ present: !!s, connected: !!s?.connected, active: !!s?.active }));
@@ -227,6 +232,38 @@ export class GameScene extends Phaser.Scene {
         this.burst(e.x, top + e.y, 0xffe066, 20, 200);
         shake(320, 0.016);
         break;
+      case 'sp':
+        this.onSpecial(e, v);
+        break;
+      case 'anchor':
+        audio.play('anchor');
+        this.burst(e.x, top + e.y + 10, 0xff9f43, 20, 200);
+        this.floatText(e.x, top + e.y + 36, 'ANCHORED!', '#ff9f43', 10);
+        shake(80, 0.004);
+        break;
+      case 'sky':
+        if (e.t === 'warn') audio.play('warn');
+        else if (e.t === 'start') {
+          audio.play(e.kind === 'gift' ? 'pickup' : 'sky');
+          if (e.kind === 'comet') shake(200, 0.006);
+        }
+        break;
+      case 'heat':
+        if (e.on) {
+          audio.play('heat');
+          this.floatText(VIEW.width / 2, top + 100, 'OVERHEAT!', '#ff6a3d', 12);
+        }
+        break;
+      case 'chaos': {
+        if (e.t === 'end') break;
+        const target = v.players[e.t === 'fizzle' ? e.by : e.to];
+        const x = target?.x ?? VIEW.width / 2;
+        audio.play(e.t === 'swap' ? 'swap' : e.t === 'fizzle' ? 'deny' : 'chaos');
+        const label = { jam: 'JAMMED!', flip: 'FLIPPED!', slow: 'SLOWED!', tether: 'TETHERED!', swap: 'SWAPPED!', fizzle: 'FIZZLE' }[e.t];
+        this.floatText(x, VIEW.arenaBottom - 96, label, '#e879f9', 11);
+        if (e.t !== 'fizzle') this.burst(x, VIEW.arenaBottom - 24, 0xe879f9, 22, 220);
+        break;
+      }
       case 'timeup':
         audio.play('damage');
         shake(300, 0.01);
@@ -238,6 +275,73 @@ export class GameScene extends Phaser.Scene {
         if (e.ph === 'levelComplete') audio.play('levelComplete');
         if (e.ph === 'victory') audio.play('victory');
         if (e.ph === 'gameOver') audio.play('gameOver');
+        break;
+    }
+  }
+
+  /** Special-orb feedback: short sounds and floating words so the rule is learnable by watching. */
+  private onSpecial(e: Extract<TickedEvent, { k: 'sp' }>, v: ViewState): void {
+    const x = e.x;
+    const y = VIEW.arenaY + e.y;
+    const word = (text: string, color: string, size = 9) => this.floatText(x, y - 30, text, color, size);
+    switch (e.t) {
+      case 'enrage':
+        audio.play('enrage');
+        this.burst(x, y, 0xff3b30, 14, 180);
+        word('ENRAGED!', '#ff6a5e');
+        break;
+      case 'fade':
+        audio.play('hit', { pitch: 0.6 });
+        break;
+      case 'fuseStart':
+        audio.play('fuse');
+        word('POP ITS TWIN!', '#ffd166');
+        break;
+      case 'fuseSave':
+        audio.play('pickup');
+        word('LINKED!', '#5cf2a0');
+        break;
+      case 'fuseFail':
+        audio.play('deny');
+        word('REGROWN!', '#ff6680');
+        break;
+      case 'syncArm':
+        audio.play('sync');
+        word('SYNC! NEED A PARTNER', '#4cc9f0');
+        break;
+      case 'pincerArm':
+        audio.play('sync');
+        word('PINCER! HIT THE OTHER SIDE', '#ff6bd6');
+        break;
+      case 'heavyHit':
+        audio.play('sync');
+        word('TEAM UP!', '#c9a27e');
+        break;
+      case 'syncDone':
+      case 'pincerDone':
+      case 'heavyDone':
+        audio.play('combo');
+        this.burst(x, y, 0xffe066, 22, 220);
+        word('NICE!', '#ffe066', 11);
+        break;
+      case 'deny':
+        audio.play('deny');
+        word('NO EFFECT', '#9aa3c7', 8);
+        break;
+      case 'seqStep': {
+        const n = v.bubbles.find((b) => b.id === e.id)?.n ?? 1;
+        audio.play('seq', { pitch: 1 + n * 0.16 });
+        break;
+      }
+      case 'seqReset':
+        audio.play('deny');
+        word('WRONG ORDER!', '#ff6680');
+        break;
+      case 'seqDone':
+        audio.play('combo');
+        word('SEQUENCE!', '#5cf2a0', 11);
+        break;
+      default:
         break;
     }
   }

@@ -119,7 +119,7 @@ export const HAZARDS = {
 } as const;
 
 /** Special bubbles. Kind order is part of the snapshot format: append only, never reorder. */
-export const SPECIAL_KINDS = ['hardshell', 'ghost', 'twin', 'sync', 'pincer', 'heavy', 'sequence'] as const;
+export const SPECIAL_KINDS = ['hardshell', 'ghost', 'twin', 'sync', 'pincer', 'heavy', 'sequence', 'quad'] as const;
 export type SpecialKind = (typeof SPECIAL_KINDS)[number];
 
 /** Discrete things a special reports to clients (FX, audio, balance counters). */
@@ -175,10 +175,18 @@ export const SPECIAL = {
   pincer: {
     /** Seconds between a left-side and a right-side hit (sides are relative to the orb). */
     window: 1.5,
-    windowSolo: 3,
+    windowSolo: 4,
     /** Multiplayer: a hit must land at least this many px off the orb's centre line to count as a side. */
     deadband: 6,
   },
+  quad: {
+    /** Quad-lock: needs four different shooters within this many seconds of the first hit. */
+    window: 3,
+  },
+  /** Extra special orbs added in multiplayer (ScaleProfile.specialShare), by relative odds. Heavy needs 3+ players. */
+  promote: { hardshell: 3, sync: 2, pincer: 1, ghost: 1, heavy: 1 },
+  /** Never promote more than this many orbs on one level. */
+  promoteMax: 3,
   heavy: {
     /** Seconds, counted from the first hit, to gather the required distinct shooters. */
     window: 2.5,

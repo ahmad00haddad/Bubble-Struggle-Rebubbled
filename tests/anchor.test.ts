@@ -17,7 +17,7 @@ import { placed, testLevel } from './helpers';
 
 const seats = (n: number) => Array.from({ length: 4 }, (_, i) => i < n);
 const mk = (n: number, bubbles: BubbleSpawn[], extra: Partial<LevelConfig> = {}, seed = 1) =>
-  new GameSimulation({ levels: [testLevel({ bubbles, ...extra })], activeSlots: seats(n), seed });
+  new GameSimulation({ levels: [testLevel({ bubbles, noPromote: true, ...extra })], activeSlots: seats(n), seed });
 
 function run(s: GameSimulation, ticks: number): SimEvent[] {
   const out: SimEvent[] = [];

@@ -94,6 +94,8 @@ export interface LevelConfig {
   bubbles: BubbleSpawn[];
   powerUps: LevelPowerUps;
   difficulty: { rating: number; bubbleSpeed: number };
+  /** Do not add multiplayer bonus specials to this level's ordinary orbs. */
+  noPromote?: boolean;
   /** Rare sky events (Gift Crate, Comet, Gravity Wobble, Hail). */
   sky?: SkyConfig;
   /** Anchor harpoons behave like normal shots here and the pickup never appears (boss levels). */

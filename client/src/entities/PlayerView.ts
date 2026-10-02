@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { CHAOS_KINDS } from '@orb/shared';
 import { LANCER_FRAMES, TEXTURES, TEX_SCALE } from '../assets/textures';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
 import type { ViewPlayer } from '../game/types';
@@ -10,6 +11,8 @@ export class PlayerView {
   private sprite: Phaser.GameObjects.Image;
   private ring: Phaser.GameObjects.Image;
   private tag: Phaser.GameObjects.Text;
+  private fxText: Phaser.GameObjects.Text;
+  private anchorRing: Phaser.GameObjects.Image;
   private lastX = NaN;
   private walkClock = 0;
   private wasDead = false;
@@ -24,7 +27,9 @@ export class PlayerView {
       .text(0, -66, '', TEXT.display(9, PLAYER_CSS[slot]))
       .setOrigin(0.5)
       .setShadow(2, 2, '#000', 0, false, true);
-    this.root = scene.add.container(0, VIEW.arenaBottom, [this.ring, this.sprite, this.tag]).setDepth(20);
+    this.fxText = scene.add.text(0, -80, '', TEXT.display(8, '#e879f9')).setOrigin(0.5).setShadow(2, 2, '#000', 0, false, true);
+    this.anchorRing = scene.add.image(0, -24, TEXTURES.ring).setTint(0xff9f43).setAlpha(0.7).setScale(1.1).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    this.root = scene.add.container(0, VIEW.arenaBottom, [this.anchorRing, this.ring, this.sprite, this.tag, this.fxText]).setDepth(20);
     scene.tweens.add({ targets: this.ring, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });
   }
 
@@ -77,6 +82,13 @@ export class PlayerView {
 
     // speed boost: warm glow; double harpoon: violet edge
     if (!dead && p.speed > 0) this.sprite.setTint(0xffffff, 0xffffff, 0xfff0a0, 0xfff0a0);
+
+    // Chaos effect: purple tint and a label; loaded Anchor: orange ring.
+    const fxName = p.fx > 0 ? CHAOS_KINDS[p.fx - 1].toUpperCase() : '';
+    if (!dead && p.fx > 0) this.sprite.setTint(0xe9a8ff);
+    const loaded = !dead && p.anchor > 0;
+    this.anchorRing.setVisible(loaded).setAlpha(0.5 + 0.3 * Math.sin(timeMs / 140));
+    this.fxText.setText(dead ? '' : fxName ? `${fxName}!` : loaded ? 'ANCHOR' : '').setColor(fxName ? '#e879f9' : '#ff9f43');
   }
 
   get color(): number {

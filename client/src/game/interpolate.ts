@@ -29,6 +29,8 @@ export function buildView(a: Snapshot, b: Snapshot | null, rt: number, level: Le
     phaseTicks: a.phaseTicks,
     timeLeftTicks: a.timeLeftTicks,
     levelIndex: a.levelIndex,
+    sky: a.sky,
+    heat: a.heat,
     levelTicks,
     players: a.players.map((p) => {
       const q = b?.players[p.slot];

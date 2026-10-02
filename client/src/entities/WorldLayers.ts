@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { BUBBLE_SIZES, HAZARDS, POWERUP, WORLD, platformActive, platformVanishIn, type LevelConfig } from '@orb/shared';
+import { BUBBLE_SIZES, HAZARDS, POWERUP, WORLD, ghostStage, platformActive, platformVanishIn, type LevelConfig } from '@orb/shared';
 import { ensureOrbTexture, TEXTURES, TEX_SCALE } from '../assets/textures';
 import { FAST_ORB_COLOR, PLAYER_COLORS, VIEW } from '../config/clientConfig';
 import type { ViewState } from '../game/types';
+import { RAGE_COLOR, SPECIAL_COLOR } from './FxLayer';
 
 /** Orbs, tethers and power-ups. Keyed by entity id; sprites are reused frame to frame. */
 export class WorldLayers {
@@ -37,10 +38,19 @@ export class WorldLayers {
     for (const b of v.bubbles) {
       seen.add(b.id);
       let img = this.orbs.get(b.id);
+      const color = b.rage ? RAGE_COLOR : b.fast ? FAST_ORB_COLOR : b.sp ? SPECIAL_COLOR[b.sp] : this.orbColor;
+      const key = ensureOrbTexture(this.scene, b.size, color);
       if (!img) {
-        img = this.scene.add.image(0, 0, ensureOrbTexture(this.scene, b.size, b.fast ? FAST_ORB_COLOR : this.orbColor)).setDepth(15);
+        img = this.scene.add.image(0, 0, key).setDepth(15);
         this.orbs.set(b.id, img);
-      }
+      } else if (img.texture.key !== key) img.setTexture(key);
+      // Ghost: fades out before it becomes untouchable (blinking = last chance), then is see-through.
+      let alpha = 1;
+      if (b.sp === 'ghost') {
+        const stage = ghostStage(b.sa ?? 0);
+        alpha = stage === 'ghostly' ? 0.28 : stage === 'warn' ? (Math.floor(timeMs / 90) % 2 ? 0.45 : 1) : 1;
+      } else if (b.sp === 'sequence' && (b.sa ?? 0) >= 1) alpha = 0.7;
+      img.setAlpha(alpha);
       const r = BUBBLE_SIZES[b.size].radius;
       const nearFloor = WORLD.height - (b.y + r);
       const squash = nearFloor < 5 ? 0.9 + nearFloor * 0.02 : 1;
@@ -59,7 +69,9 @@ export class WorldLayers {
       const color = PLAYER_COLORS[h.owner] ?? 0xffffff;
       const tipY = top + h.tipY;
       const floor = VIEW.arenaBottom;
-      g.lineStyle(7, color, 0.22);
+      const anchor = !!h.anchor;
+      const stuck = anchor && h.ttl !== undefined && h.ttl > 0 && h.tipY < 4 + 480;
+      g.lineStyle(anchor ? 13 : 7, anchor ? 0xff9f43 : color, anchor ? 0.3 + (stuck ? 0.12 * Math.sin(timeMs / 90) : 0) : 0.22);
       g.lineBetween(h.x, floor, h.x, tipY + 6);
       g.lineStyle(2.5, 0xffffff, 0.95);
       g.beginPath();
@@ -79,6 +91,17 @@ export class WorldLayers {
         this.tips.set(h.id, tip);
       }
       tip.setPosition(h.x, tipY);
+      if (anchor) {
+        // Hook at the tip and a shrinking bar showing how long the anchor holds.
+        g.fillStyle(0xff9f43, 1);
+        g.fillTriangle(h.x - 9, tipY + 2, h.x + 9, tipY + 2, h.x, tipY + 16);
+        if (h.ttl !== undefined) {
+          g.fillStyle(0x000000, 0.5);
+          g.fillRect(h.x - 14, tipY + 20, 28, 4);
+          g.fillStyle(0xff9f43, 1);
+          g.fillRect(h.x - 14, tipY + 20, 28 * Math.min(1, h.ttl / 4), 4);
+        }
+      }
     }
     for (const [id, img] of this.tips) if (!seenH.has(id)) (img.destroy(), this.tips.delete(id));
 

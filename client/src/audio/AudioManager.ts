@@ -15,7 +15,19 @@ export type SoundKey =
   | 'boom'
   | 'click'
   | 'tick'
-  | 'go';
+  | 'go'
+  | 'enrage'
+  | 'warn'
+  | 'sky'
+  | 'heat'
+  | 'chaos'
+  | 'swap'
+  | 'deny'
+  | 'sync'
+  | 'seq'
+  | 'combo'
+  | 'fuse'
+  | 'anchor';
 
 type Recipe = (ctx: AudioContext, out: AudioNode, t: number, opt: { pitch: number }) => void;
 
@@ -158,6 +170,33 @@ const RECIPES: Record<SoundKey, Recipe> = {
   click: (c, o, t) => tone(c, o, t, 'square', 1200, 900, 0.04, 0.08),
   tick: (c, o, t) => tone(c, o, t, 'square', 660, 660, 0.12, 0.12),
   go: (c, o, t) => tone(c, o, t, 'square', 1320, 1320, 0.3, 0.13),
+  enrage: (c, o, t) => {
+    tone(c, o, t, 'sawtooth', 180, 520, 0.22, 0.2);
+    noise(c, o, t, 0.15, 0.15, 1400);
+  },
+  warn: (c, o, t) => {
+    tone(c, o, t, 'square', 880, 880, 0.09, 0.1);
+    tone(c, o, t + 0.14, 'square', 880, 880, 0.09, 0.1);
+  },
+  sky: (c, o, t) => arp(c, o, t, [440, 660, 880], 0.07, 'triangle', 0.13),
+  heat: (c, o, t) => {
+    tone(c, o, t, 'sawtooth', 140, 70, 0.4, 0.18);
+    noise(c, o, t, 0.3, 0.12, 900);
+  },
+  chaos: (c, o, t) => {
+    tone(c, o, t, 'square', 700, 180, 0.28, 0.16);
+    tone(c, o, t + 0.05, 'triangle', 180, 900, 0.28, 0.14);
+  },
+  swap: (c, o, t) => arp(c, o, t, [900, 450, 900, 450], 0.06, 'square', 0.1),
+  deny: (c, o, t) => tone(c, o, t, 'square', 240, 110, 0.14, 0.12),
+  sync: (c, o, t) => tone(c, o, t, 'triangle', 700, 940, 0.12, 0.2),
+  seq: (c, o, t, { pitch }) => tone(c, o, t, 'triangle', 760 * pitch, 980 * pitch, 0.1, 0.2),
+  combo: (c, o, t) => arp(c, o, t, [784, 988, 1175, 1568], 0.06, 'square', 0.11),
+  fuse: (c, o, t) => tone(c, o, t, 'sawtooth', 520, 300, 0.22, 0.14),
+  anchor: (c, o, t) => {
+    noise(c, o, t, 0.2, 0.22, 700);
+    tone(c, o, t, 'square', 220, 900, 0.12, 0.16);
+  },
 };
 
 export const audio = new AudioManager();

@@ -5,7 +5,7 @@ import type { Rng } from '../rng';
 import type { ScaleProfile } from '../scaling';
 import { ghost } from './ghost';
 import { hardshell } from './hardshell';
-import { heavy } from './heavy';
+import { heavy, quad } from './heavy';
 import { pincer } from './pincer';
 import { sequence } from './sequence';
 import { sync } from './sync';
@@ -62,7 +62,7 @@ export interface SpecialDef {
   onPop?(host: SpecialHost, b: BubbleState): void;
 }
 
-export const SPECIAL_DEFS: Record<SpecialKind, SpecialDef> = { hardshell, ghost, twin, sync, pincer, heavy, sequence };
+export const SPECIAL_DEFS: Record<SpecialKind, SpecialDef> = { hardshell, ghost, twin, sync, pincer, heavy, sequence, quad };
 
 export function isIntangible(b: BubbleState): boolean {
   return b.sp ? (SPECIAL_DEFS[b.sp].intangible?.(b) ?? false) : false;

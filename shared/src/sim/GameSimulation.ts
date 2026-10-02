@@ -20,6 +20,7 @@ import {
   type PowerUpType,
   type ChaosKind,
   type SkyKind,
+  type SpecialKind,
 } from '../constants/game';
 import type { LevelConfig } from '../types/level';
 import type {
@@ -233,6 +234,29 @@ export class GameSimulation {
         } else pairs.set(s.group, b);
       }
     });
+    this.promoteSpecials();
+  }
+
+  /**
+   * Multiplayer: turn some ordinary orbs into specials so bigger teams meet more mechanics
+   * instead of just more orbs. Share comes from the scale profile; solo gets none.
+   */
+  private promoteSpecials(): void {
+    const share = this.scale.specialShare;
+    if (share <= 0 || this.level.noPromote) return;
+    const explicit = this.bubbles.filter((b) => b.sp).length;
+    const want = Math.min(SPECIAL.promoteMax, Math.round(share * this.bubbles.length) - explicit);
+    if (want <= 0) return;
+    const pool: Partial<Record<SpecialKind, number>> = { ...SPECIAL.promote };
+    if (this.scale.players < 3) delete pool.heavy;
+    const candidates = this.bubbles.filter((b) => !b.sp && b.size >= 1);
+    for (let i = 0; i < want && candidates.length > 0; i++) {
+      const b = candidates.splice(Math.floor(this.specialRng.next() * candidates.length), 1)[0];
+      const kind = this.specialRng.weighted(pool);
+      if (!kind) break;
+      b.sp = kind;
+      SPECIAL_DEFS[kind].init?.(this.specialHost, b, {} as never);
+    }
   }
 
   /** A harpoon connected with a tangible orb. The harpoon is spent either way. */

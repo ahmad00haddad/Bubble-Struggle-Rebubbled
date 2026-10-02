@@ -34,6 +34,8 @@ export class Hud {
   private timer: Phaser.GameObjects.Text;
   private levelText: Phaser.GameObjects.Text;
   private net: Phaser.GameObjects.Text;
+  private heat: Phaser.GameObjects.Graphics;
+  private heatText: Phaser.GameObjects.Text;
 
   constructor(private scene: Phaser.Scene) {
     const g = scene.add.graphics().setDepth(50);
@@ -47,6 +49,8 @@ export class Hud {
     this.rows = PLAYER_COLORS.map((_, slot) => this.makeRow(slot));
     this.timer = scene.add.text(VIEW.width / 2, 38, '0:00', TEXT.display(20)).setOrigin(0.5).setDepth(51);
     this.levelText = scene.add.text(VIEW.width / 2, 15, '', TEXT.display(8, COLORS.textDim)).setOrigin(0.5).setDepth(51);
+    this.heat = scene.add.graphics().setDepth(52);
+    this.heatText = scene.add.text(VIEW.width / 2, 63, '', TEXT.display(6, '#ff9f43')).setOrigin(0.5, 1).setDepth(53);
     this.net = scene.add.text(VIEW.width - 12, VIEW.height - 10, '', TEXT.body(14, COLORS.textDim)).setOrigin(1, 1).setDepth(51);
   }
 
@@ -93,6 +97,7 @@ export class Hud {
     const low = secs <= 10 && v.phase === 'playing';
     this.timer.setColor(low ? COLORS.bad : COLORS.text);
     this.timer.setScale(low ? 1 + 0.08 * Math.abs(Math.sin(this.scene.time.now / 160)) : 1);
+    this.drawHeat(v);
     this.levelText.setText(`LEVEL ${v.levelIndex + 1}/${levelCount}`);
     this.levelText.setData('name', levelName);
 
@@ -141,6 +146,25 @@ export class Hud {
         }
       });
     });
+  }
+
+  /** Heat meter under the timer: fills as the team pops fast, flashes red once the governor is on. */
+  private drawHeat(v: ViewState): void {
+    const g = this.heat;
+    g.clear();
+    const live = v.phase === 'playing' && v.heat > 0.04;
+    this.heatText.setText(live && v.heat >= 1 ? 'OVERHEAT' : live ? 'HEAT' : '');
+    if (!live) return;
+    const w = 164;
+    const x = VIEW.width / 2 - w / 2;
+    const hot = v.heat >= 1;
+    const flash = hot && Math.floor(this.scene.time.now / 140) % 2 === 0;
+    g.fillStyle(0x000000, 0.6);
+    g.fillRect(x, 56, w, 5);
+    g.fillStyle(hot ? (flash ? 0xffffff : 0xff3355) : 0xffb347, 1);
+    g.fillRect(x, 56, w * Math.min(1, v.heat / 1.6), 5);
+    g.fillStyle(0xffffff, 0.9);
+    g.fillRect(x + w / 1.6 - 1, 54, 2, 9);
   }
 
   setNet(text: string, color: string): void {

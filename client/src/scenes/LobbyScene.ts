@@ -17,6 +17,7 @@ export class LobbyScene extends Phaser.Scene {
   private status!: Phaser.GameObjects.Text;
   private net!: Phaser.GameObjects.Text;
   private startBtn!: Button;
+  private chaosBtn!: Button;
   private leaving = false;
 
   constructor() {
@@ -55,11 +56,12 @@ export class LobbyScene extends Phaser.Scene {
       this.tweens.add({ targets: sprite, y: y - 3, duration: 600 + i * 120, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
-    this.status = this.add.text(cx, 382, '', TEXT.body(19)).setOrigin(0.5);
-    this.startBtn = new Button(this, cx, 432, 'START', () => this.toggleReady(), { primary: true, width: 320 });
-    const copyLink = new Button(this, cx - 130, 500, 'COPY INVITE LINK', () => this.copy(this.inviteLink(), 'Invite link copied!'), { width: 250, fontSize: 11 });
-    const leave = new Button(this, cx + 130, 500, 'LEAVE ROOM', () => this.leave(), { width: 250, fontSize: 11 });
-    new ButtonGroup(this, [this.startBtn, copyLink, leave], { onBack: () => this.leave() }).focus(0);
+    this.status = this.add.text(cx, 366, '', TEXT.body(19)).setOrigin(0.5);
+    this.chaosBtn = new Button(this, cx, 406, 'CHAOS: ON', () => this.toggleChaos(), { width: 320, fontSize: 10 });
+    this.startBtn = new Button(this, cx, 456, 'START', () => this.toggleReady(), { primary: true, width: 320 });
+    const copyLink = new Button(this, cx - 130, 514, 'COPY INVITE LINK', () => this.copy(this.inviteLink(), 'Invite link copied!'), { width: 250, fontSize: 11 });
+    const leave = new Button(this, cx + 130, 514, 'LEAVE ROOM', () => this.leave(), { width: 250, fontSize: 11 });
+    new ButtonGroup(this, [this.startBtn, this.chaosBtn, copyLink, leave], { onBack: () => this.leave() }).focus(0);
     this.net = this.add.text(VIEW.width - 12, VIEW.height - 10, '', TEXT.body(14, COLORS.textDim)).setOrigin(1, 1);
 
     session.on('room', this.refresh, this);
@@ -102,6 +104,9 @@ export class LobbyScene extends Phaser.Scene {
       else if (st.ready) v.state.setText('READY ✓').setColor(COLORS.good);
       else v.state.setText('not ready').setColor(COLORS.textDim);
     });
+    const isHost = room.host === me;
+    this.chaosBtn.setText(`CHAOS PICKUPS: ${room.chaos ? 'ON' : 'OFF'}${isHost ? '' : ' (HOST ONLY)'}`);
+    this.chaosBtn.setEnabled(isHost);
     const mine = room.seats[me];
     const others = room.seats.filter((st, i) => st && i !== me);
     this.startBtn.setText(mine?.ready ? 'READY ✓ (CANCEL)' : 'START');
@@ -116,6 +121,13 @@ export class LobbyScene extends Phaser.Scene {
 
   private cardPos(i: number): { x: number; y: number } {
     return { x: VIEW.width / 2 + (i % 2 === 0 ? -165 : 165), y: 236 + Math.floor(i / 2) * 82 };
+  }
+
+  private toggleChaos(): void {
+    const room = this.session.room;
+    if (!room || room.host !== this.session.slot) return;
+    audio.unlock();
+    this.session.setChaos(!room.chaos);
   }
 
   private toggleReady(): void {

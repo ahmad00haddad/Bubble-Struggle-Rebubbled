@@ -41,7 +41,7 @@ const ALL_LEVELS: LevelConfig[] = [
     platforms: [{ x: 420, y: 270, w: 120, h: 16 }],
     bubbles: [
       { size: 2, x: 190, y: 150 },
-      { size: 2, x: 770, y: 150, velocityX: -108 },
+      { size: 2, x: 770, y: 150, velocityX: -108, special: 'hardshell' },
       { size: 1, x: 400, y: 100, velocityY: 160 },
       { size: 1, x: 560, y: 100, velocityX: -120, velocityY: 160 },
     ],
@@ -61,7 +61,7 @@ const ALL_LEVELS: LevelConfig[] = [
     // Stand-in for the first special bubble: one fast orb.
     bubbles: [
       { size: 3, x: 480, y: 130 },
-      { size: 1, x: 200, y: 120, fast: true },
+      { size: 1, x: 200, y: 120, fast: true, special: 'ghost', phase: 1.5 },
       { size: 1, x: 760, y: 120, velocityX: -120, fast: true },
     ],
     powerUps: basicDrops(0.15, { placed: [{ type: 'shield', x: 480, y: 40, delay: 10 }] }),
@@ -82,8 +82,8 @@ const ALL_LEVELS: LevelConfig[] = [
     bubbles: [
       { size: 2, x: 140, y: 150, velocityY: 120 },
       { size: 2, x: 820, y: 150, velocityX: -108, velocityY: 120 },
-      { size: 1, x: 420, y: 200, velocityX: -120 },
-      { size: 1, x: 540, y: 200 },
+      { size: 1, x: 420, y: 200, velocityX: -120, special: 'twin', group: 1 },
+      { size: 1, x: 540, y: 200, special: 'twin', group: 1 },
       { size: 0, x: 480, y: 120, fast: true },
     ],
     powerUps: basicDrops(0.14),
@@ -103,7 +103,7 @@ const ALL_LEVELS: LevelConfig[] = [
     bombs: { every: 14, fuse: 3, radius: 70, firstAt: 10 },
     bubbles: [
       { size: 3, x: 300, y: 110 },
-      { size: 2, x: 700, y: 120, velocityX: -108 },
+      { size: 2, x: 700, y: 120, velocityX: -108, special: 'sync' },
       { size: 1, x: 120, y: 120, velocityY: 120 },
       { size: 1, x: 840, y: 120, velocityX: -120, velocityY: 120 },
     ],
@@ -126,7 +126,7 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     bubbles: [
       { size: 2, x: 170, y: 130 },
-      { size: 2, x: 480, y: 100, velocityX: -108 },
+      { size: 2, x: 480, y: 100, velocityX: -108, special: 'pincer' },
       { size: 2, x: 790, y: 130 },
       { size: 1, x: 300, y: 100, fast: true },
       { size: 1, x: 660, y: 100, velocityX: -120, fast: true },
@@ -146,11 +146,16 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     bubbles: [
       { size: 3, x: 200, y: 120 },
-      { size: 3, x: 760, y: 120, velocityX: -96 },
+      { size: 3, x: 760, y: 120, velocityX: -96, special: 'hardshell' },
       { size: 1, x: 480, y: 90, velocityY: 160, fast: true },
       { size: 1, x: 300, y: 330, velocityX: -120 },
     ],
-    powerUps: basicDrops(0.14, { placed: [{ type: 'extraTime', x: 480, y: 60, delay: 30 }] }),
+    powerUps: basicDrops(0.14, {
+      placed: [
+        { type: 'extraTime', x: 480, y: 60, delay: 30 },
+        { type: 'anchor', x: 480, y: 60, delay: 14 },
+      ],
+    }),
     difficulty: { rating: 7, bubbleSpeed: 1.1 },
     theme: { sky: [0x0d1b2a, 0x274060], accent: 0x9bf6ff, orb: 0xf72585 },
   },
@@ -171,11 +176,11 @@ const ALL_LEVELS: LevelConfig[] = [
       { size: 1, x: 540, y: 110, velocityX: -120, velocityY: 150 },
       { size: 1, x: 740, y: 160 },
       { size: 1, x: 880, y: 120, velocityX: -120, velocityY: 120 },
-      { size: 0, x: 150, y: 260 },
+      { size: 0, x: 150, y: 260, special: 'sequence', group: 1, order: 1 },
       { size: 0, x: 350, y: 300, velocityX: -132, fast: true },
-      { size: 0, x: 610, y: 300 },
+      { size: 0, x: 610, y: 300, special: 'sequence', group: 1, order: 2 },
       { size: 0, x: 810, y: 260, velocityX: -132, fast: true },
-      { size: 0, x: 480, y: 330 },
+      { size: 0, x: 480, y: 330, special: 'sequence', group: 1, order: 3 },
       { size: 0, x: 480, y: 330, velocityX: -132 },
     ],
     powerUps: basicDrops(0.1),
@@ -198,7 +203,7 @@ const ALL_LEVELS: LevelConfig[] = [
       { x: 915, w: 45 },
     ],
     bubbles: [
-      { size: 3, x: 170, y: 100 },
+      { size: 3, x: 170, y: 100, special: 'heavy' },
       { size: 3, x: 790, y: 100, velocityX: -96 },
       { size: 1, x: 400, y: 220 },
       { size: 1, x: 560, y: 220, velocityX: -120 },
@@ -225,7 +230,7 @@ const ALL_LEVELS: LevelConfig[] = [
     bombs: { every: 18, fuse: 3, radius: 70, firstAt: 14 },
     bubbles: [
       { size: 3, x: 140, y: 110 },
-      { size: 3, x: 480, y: 80, velocityX: -96 },
+      { size: 3, x: 480, y: 80, velocityX: -96, special: 'quad' },
       { size: 3, x: 820, y: 110, velocityX: -96 },
       { size: 2, x: 300, y: 150 },
       { size: 2, x: 660, y: 150, velocityX: -108 },
@@ -238,6 +243,8 @@ const ALL_LEVELS: LevelConfig[] = [
       ],
     }),
     difficulty: { rating: 10, bubbleSpeed: 1.2 },
+    noAnchor: true,
+    sky: { budget: 2, pool: { comet: 3, hail: 2, gift: 3 } },
     theme: { sky: [0x240b1e, 0x7a1f3d], accent: 0xffe066, orb: 0xff5d8f },
   },
   // ---- Hazard levels -------------------------------------------------------

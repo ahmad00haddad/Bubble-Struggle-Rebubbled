@@ -1,4 +1,4 @@
-import type { BubbleSize, LevelConfig, LifeState, MatchPhase, PowerUpType, SpecialKind, TickedEvent } from '@orb/shared';
+import type { BubbleSize, LevelConfig, NetSky, LifeState, MatchPhase, PowerUpType, SpecialKind, TickedEvent } from '@orb/shared';
 
 export interface ViewPlayer {
   slot: number;
@@ -11,6 +11,12 @@ export interface ViewPlayer {
   shield: number;
   speed: number;
   dbl: number;
+  /** Seconds the Anchor pickup stays loaded. */
+  anchor: number;
+  /** Chaos effect (0 none, else CHAOS_KINDS index + 1), seconds left, tether partner slot (-1 none). */
+  fx: number;
+  fxT: number;
+  fxP: number;
   facing: -1 | 1;
 }
 
@@ -23,7 +29,11 @@ export interface ViewState {
   levelTicks: number;
   bubbles: { id: number; size: BubbleSize; x: number; y: number; fast?: boolean; rage?: boolean; hot?: boolean; sp?: SpecialKind; sa?: number; lk?: number; hm?: number; n?: number }[];
   bombs: { id: number; x: number; y: number; fuse: number }[];
-  harpoons: { id: number; owner: number; x: number; tipY: number }[];
+  harpoons: { id: number; owner: number; x: number; tipY: number; anchor?: boolean; ttl?: number }[];
+  /** The sky event in progress, if any. */
+  sky?: NetSky;
+  /** Heat as a share of the governor threshold. */
+  heat: number;
   powerups: { id: number; type: PowerUpType; x: number; y: number; life: number }[];
 }
 

@@ -46,9 +46,18 @@ export class HowToScene extends Phaser.Scene {
 
     this.add.text(540, 286, 'POWER-UPS', TEXT.display(14, COLORS.accentCss));
     POWERUP_TYPES.forEach((t, i) => {
-      this.add.image(556, 322 + i * 34, TEXTURES.powerUp(t)).setScale(1 / TEX_SCALE);
-      this.add.text(580, 311 + i * 34, PU_TEXT[t], TEXT.body(16));
+      this.add.image(556, 320 + i * 30, TEXTURES.powerUp(t)).setScale(1 / TEX_SCALE);
+      this.add.text(580, 310 + i * 30, PU_TEXT[t], TEXT.body(15));
     });
+
+    this.add.text(left, 372, 'SPECIAL ORBS', TEXT.display(14, COLORS.accentCss));
+    const specials = [
+      'Steel ring: needs two hits. Ghost: wait until it is solid.',
+      'Gold link: pop its twin before the fuse runs out.',
+      'Dots: hit it with different Lancers. Numbers: hit in order.',
+      'Rare events fall from the sky — watch the warning!',
+    ];
+    specials.forEach((l, i) => this.add.text(left, 398 + i * 24, '• ' + l, TEXT.body(15)));
 
     const back = new Button(this, VIEW.width / 2, 556, 'BACK', () => goTo(this, SCENES.menu), { width: 220 });
     new ButtonGroup(this, [back], { onBack: () => goTo(this, SCENES.menu) }).focus(0);

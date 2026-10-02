@@ -19,7 +19,7 @@ const seats = (n: number) => Array.from({ length: 4 }, (_, i) => i < n);
 const crowd = (count: number): BubbleSpawn[] =>
   Array.from({ length: count }, (_, i) => ({ size: 1 as const, x: 60 + i * 55, y: 120 + (i % 3) * 20, velocityX: 0 }));
 const mk = (n: number, bubbles: BubbleSpawn[], seed = 1) =>
-  new GameSimulation({ levels: [testLevel({ bubbles, timeLimit: 300 })], activeSlots: seats(n), seed });
+  new GameSimulation({ levels: [testLevel({ bubbles, timeLimit: 300, noPromote: true })], activeSlots: seats(n), seed });
 
 /** Pop `k` orbs straight away by placing harpoons (one per tick keeps it simple and deterministic). */
 function popOrbs(s: GameSimulation, k: number): SimEvent[] {
@@ -121,7 +121,7 @@ describe('heat governor', () => {
   });
 
   it('heat rides the snapshot as a percentage of the threshold and the hot flag on orbs', () => {
-    const m = new Match({ levels: [testLevel({ bubbles: crowd(14), timeLimit: 300 })], activeSlots: seats(4), seed: 1 });
+    const m = new Match({ levels: [testLevel({ bubbles: crowd(14), timeLimit: 300, noPromote: true })], activeSlots: seats(4), seed: 1 });
     for (let i = 0; i < 100; i++) m.advance();
     expect(encodeSnapshot(m, []).hl).toBeUndefined();
     popOrbs(m.sim, 7);

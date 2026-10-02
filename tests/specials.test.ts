@@ -312,8 +312,12 @@ describe('ordinary orbs and determinism', () => {
     }
   });
 
-  it('shipped levels contain no specials yet (they arrive with the level redesign)', () => {
-    expect(LEVELS.some((l) => l.bubbles.some((b) => b.special))).toBe(false);
+  it('shipped levels introduce one new mechanic at a time through levels 2-10', () => {
+    const kinds = (i: number) => [...new Set(LEVELS[i].bubbles.flatMap((b) => (b.special ? [b.special] : [])))];
+    expect(kinds(0)).toEqual([]);
+    expect([1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => kinds(i))).toEqual([['hardshell'], ['ghost'], ['twin'], ['sync'], ['pincer'], ['hardshell'], ['sequence'], ['heavy'], ['quad']]);
+    expect(LEVELS[6].powerUps.placed.some((p) => p.type === 'anchor')).toBe(true);
+    expect(LEVELS[9].noAnchor).toBe(true);
   });
 
   it('same seed and inputs give identical worlds with every special active', () => {

@@ -265,3 +265,16 @@ Levels are pure data, validated by `validateLevel()` (unit-tested).
 - `ALLOWED_ORIGINS` var restricts which sites may open rooms.
 - Migration path: `RoomCore` has no Cloudflare dependencies; a Node `ws` server
   can host it unchanged behind a different transport if traffic grows.
+
+## 12. Gameplay depth systems (added 2026-10)
+
+All of these live in `shared/` and run inside `GameSimulation`, so the Durable Object and solo mode agree exactly.
+
+- **ScaleProfile** (`sim/scaling.ts`): a pure lookup from the number of active players at level load. Controls orb speed, clock, power-up drop chance, heat threshold, special-orb share, chaos and four-player mechanics. A seat joining mid-level never rescales a running level.
+- **Special orbs** (`sim/specials/`): small rule objects with hooks (`init`, `intangible`, `harpoonPass`, `onHit`, `onTick`, `onPop`). The simulation calls them through `hitBubble`; ordinary orbs never enter this code. State rides optional fields on `BubbleState` (`sp`, `sa`, `lk`, `hm`, `n`, `rage`, `hot`).
+- **Anchor harpoon**: a power-up that makes the next shot stick to the ceiling or a platform underside for 4 s, popping what touches it (0.35 s pace). `noAnchor` levels (the finale) keep normal shots.
+- **Surprise Director** (`sim/director.ts` + `GameSimulation.stepSky`): plans rare, telegraphed sky events when a level loads from its own RNG stream; at most one at a time.
+- **Heat governor**: pops add heat that decays; above a per-player-count threshold, new children are 12% faster for 4 s. Never touches players.
+- **Chaos**: a rare pickup in multiplayer rooms; the server picks a safe teammate and fires jam, flip, slow, tether or swap. Host-controlled room option (`chaos` message), never in solo, one effect per target, 6 s immunity afterwards.
+- **Networking**: only optional trailing snapshot fields were added (special orb rows, anchor harpoons, sky `s`, heat `hl`, player effect columns); ordinary orb rows are unchanged. The client never decides any of this; prediction only gains the movement effects (flip, slow, tether) through the shared `movePlayerFx`.
+- **Balance harness**: `tests/balance/`, run with `npm run balance`.
