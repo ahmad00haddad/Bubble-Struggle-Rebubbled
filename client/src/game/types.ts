@@ -17,6 +17,14 @@ export interface ViewPlayer {
   fx: number;
   fxT: number;
   fxP: number;
+  /** Rare-crate timers (seconds) and Double or Nothing state. */
+  wide: number;
+  boots: number;
+  potato: number;
+  mag: number;
+  boom: number;
+  sx: number;
+  don: number;
   facing: -1 | 1;
 }
 
@@ -27,13 +35,15 @@ export interface ViewState {
   levelIndex: number;
   players: ViewPlayer[];
   levelTicks: number;
-  bubbles: { id: number; size: BubbleSize; x: number; y: number; fast?: boolean; rage?: boolean; hot?: boolean; sp?: SpecialKind; sa?: number; lk?: number; hm?: number; n?: number }[];
-  bombs: { id: number; x: number; y: number; fuse: number }[];
-  harpoons: { id: number; owner: number; x: number; tipY: number; anchor?: boolean; ttl?: number }[];
+  bubbles: { id: number; size: BubbleSize; x: number; y: number; fast?: boolean; rage?: boolean; hot?: boolean; frozen?: boolean; sp?: SpecialKind; sa?: number; lk?: number; hm?: number; n?: number }[];
+  bombs: { id: number; x: number; y: number; fuse: number; r?: number }[];
+  harpoons: { id: number; owner: number; x: number; tipY: number; anchor?: boolean; ttl?: number; wide?: boolean; bm?: 0 | 1 }[];
   /** The sky event in progress, if any. */
   sky?: NetSky;
   /** Heat as a share of the governor threshold. */
   heat: number;
+  /** Seconds of Slow Orbs left. */
+  slow: number;
   powerups: { id: number; type: PowerUpType; x: number; y: number; life: number }[];
 }
 

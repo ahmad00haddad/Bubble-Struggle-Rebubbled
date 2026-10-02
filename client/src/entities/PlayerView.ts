@@ -86,9 +86,18 @@ export class PlayerView {
     // Chaos effect: purple tint and a label; loaded Anchor: orange ring.
     const fxName = p.fx > 0 ? CHAOS_KINDS[p.fx - 1].toUpperCase() : '';
     if (!dead && p.fx > 0) this.sprite.setTint(0xe9a8ff);
-    const loaded = !dead && p.anchor > 0;
+    const loaded = !dead && (p.anchor > 0 || p.boom > 0);
     this.anchorRing.setVisible(loaded).setAlpha(0.5 + 0.3 * Math.sin(timeMs / 140));
-    this.fxText.setText(dead ? '' : fxName ? `${fxName}!` : loaded ? 'ANCHOR' : '').setColor(fxName ? '#e879f9' : '#ff9f43');
+    const tags: string[] = [];
+    if (p.potato > 0) tags.push('POTATO');
+    if (p.boots > 0) tags.push('BOOTS');
+    if (p.wide > 0) tags.push('WIDE');
+    if (p.mag > 0) tags.push('MAGNET');
+    if (p.boom > 0) tags.push('BOOMERANG');
+    else if (loaded) tags.push('ANCHOR');
+    if (p.don === 1) tags.push('DOUBLE?');
+    if (p.sx > 0) tags.push('x2');
+    this.fxText.setText(dead ? '' : fxName ? `${fxName}!` : tags.slice(0, 2).join(' ')).setColor(fxName ? '#e879f9' : '#ff9f43');
   }
 
   get color(): number {

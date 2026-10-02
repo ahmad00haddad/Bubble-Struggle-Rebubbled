@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BUBBLE_SIZES, CONTROLS, POWERUP_TYPES, describeKeys, type PowerUpType } from '@orb/shared';
+import { BUBBLE_SIZES, CONTROLS, POWERUP_TYPES, describeKeys } from '@orb/shared';
 import { TEXTURES, TEX_SCALE } from '../assets/textures';
 import { VIEW } from '../config/clientConfig';
 import { Button, ButtonGroup } from '../ui/Button';
@@ -7,15 +7,6 @@ import { COLORS, TEXT } from '../ui/theme';
 import { goTo, heading, menuBackdrop, panel } from '../ui/widgets';
 import { SCENES } from './keys';
 
-const PU_TEXT: Record<PowerUpType, string> = {
-  shield: 'Shield — absorbs one hit',
-  extraLife: 'Extra Life — +1 life',
-  extraTime: 'Extra Time — +20 s on the clock',
-  doubleHarpoon: 'Double Tether — two shots at once',
-  speedBoost: 'Speed Boost — run faster',
-  anchor: 'Anchor Tether — next shot sticks to the ceiling for 4 s',
-  chaos: 'Chaos — a short prank on a teammate (multiplayer only)',
-};
 
 export class HowToScene extends Phaser.Scene {
   constructor() {
@@ -45,10 +36,10 @@ export class HowToScene extends Phaser.Scene {
     this.add.text(left, 338, `Shoot: ${describeKeys(c1.shoot)}  or  ${describeKeys(c2.shoot)}      Pause: ${describeKeys(CONTROLS.pause)}`, TEXT.body(17));
 
     this.add.text(540, 286, 'POWER-UPS', TEXT.display(14, COLORS.accentCss));
-    POWERUP_TYPES.forEach((t, i) => {
-      this.add.image(556, 320 + i * 30, TEXTURES.powerUp(t)).setScale(1 / TEX_SCALE);
-      this.add.text(580, 310 + i * 30, PU_TEXT[t], TEXT.body(15));
-    });
+    // A strip of icons; the full guide has the names and what each one does.
+    POWERUP_TYPES.forEach((t, i) => this.add.image(560 + (i % 7) * 40, 322 + Math.floor(i / 7) * 40, TEXTURES.powerUp(t)).setScale(1 / TEX_SCALE));
+    this.add.text(540, 430, 'Crates fall now and then. Some help, some are\ngambles, a few are traps — you choose.', { ...TEXT.body(15), wordWrap: { width: 340 } });
+    new Button(this, 710, 494, 'POWER-UP GUIDE', () => goTo(this, SCENES.powerups), { width: 280, fontSize: 11 });
 
     this.add.text(left, 372, 'SPECIAL ORBS', TEXT.display(14, COLORS.accentCss));
     const specials = [

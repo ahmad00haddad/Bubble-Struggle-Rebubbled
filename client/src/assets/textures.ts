@@ -164,6 +164,20 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
     speedBoost: 0x5cf2a0,
     anchor: 0xff9f43,
     chaos: 0xd946ef,
+    shrink: 0xff5d73,
+    boots: 0x8d6e63,
+    potato: 0xff9f1c,
+    wide: 0x2ec4b6,
+    pinata: 0xff70a6,
+    chest: 0xe6b800,
+    decoy: 0x45bde6,
+    slow: 0x7aa2ff,
+    freeze: 0x8fe3f2,
+    magnet: 0xe63946,
+    double: 0x9d4edd,
+    baton: 0x06b58a,
+    flare: 0xff6b35,
+    boomerang: 0x5fc400,
   };
   const c = colors[type];
   g.fillStyle(shade(c, -0.45), 1);
@@ -179,6 +193,7 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
   g.lineStyle(2.2 * k, w, 1);
   switch (type) {
     case 'shield':
+    case 'decoy':
       g.fillPoints(
         [
           new Phaser.Math.Vector2(cx - 6 * k, cy - 6 * k),
@@ -189,6 +204,12 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
         ],
         true,
       );
+      if (type === 'decoy') {
+        // Same shield, one hairline crack: a careful player can tell.
+        g.lineStyle(1.4 * k, c, 1);
+        g.lineBetween(cx - 1 * k, cy - 6 * k, cx + 2 * k, cy - 1 * k);
+        g.lineBetween(cx + 2 * k, cy - 1 * k, cx - 1 * k, cy + 3 * k);
+      }
       break;
     case 'extraLife':
       g.fillCircle(cx - 3.2 * k, cy - 2.5 * k, 3.8 * k);
@@ -224,6 +245,76 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
       g.lineBetween(cx, cy + 7 * k, cx, cy - 4 * k);
       g.lineBetween(cx - 5 * k, cy - 7 * k, cx + 5 * k, cy - 7 * k);
       g.fillTriangle(cx - 4 * k, cy - 3 * k, cx + 4 * k, cy - 3 * k, cx, cy - 8.5 * k);
+      break;
+    case 'shrink':
+      g.fillTriangle(cx - 6 * k, cy - 7 * k, cx + 6 * k, cy - 7 * k, cx, cy);
+      g.fillTriangle(cx - 6 * k, cy + 7 * k, cx + 6 * k, cy + 7 * k, cx, cy);
+      break;
+    case 'boots':
+      g.fillRect(cx - 5 * k, cy - 8 * k, 6 * k, 11 * k);
+      g.fillRoundedRect(cx - 5 * k, cy + 1 * k, 13 * k, 6 * k, 2 * k);
+      break;
+    case 'potato':
+      g.fillEllipse(cx, cy, 15 * k, 11 * k);
+      g.fillStyle(c, 1);
+      g.fillCircle(cx - 3 * k, cy - 1 * k, 1.4 * k);
+      g.fillCircle(cx + 3 * k, cy + 1 * k, 1.4 * k);
+      break;
+    case 'wide':
+      g.lineBetween(cx - 6 * k, cy, cx + 6 * k, cy);
+      g.fillTriangle(cx - 9 * k, cy, cx - 4 * k, cy - 4 * k, cx - 4 * k, cy + 4 * k);
+      g.fillTriangle(cx + 9 * k, cy, cx + 4 * k, cy - 4 * k, cx + 4 * k, cy + 4 * k);
+      g.lineBetween(cx, cy - 7 * k, cx, cy + 7 * k);
+      break;
+    case 'pinata':
+      g.fillCircle(cx, cy, 4.5 * k);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        g.lineBetween(cx + Math.cos(a) * 6.5 * k, cy + Math.sin(a) * 6.5 * k, cx + Math.cos(a) * 9 * k, cy + Math.sin(a) * 9 * k);
+      }
+      break;
+    case 'chest':
+      g.fillRect(cx - 8 * k, cy - 3 * k, 16 * k, 10 * k);
+      g.fillRoundedRect(cx - 8 * k, cy - 8 * k, 16 * k, 6 * k, { tl: 5 * k, tr: 5 * k, bl: 0, br: 0 });
+      g.fillStyle(c, 1);
+      g.fillRect(cx - 1.5 * k, cy - 1 * k, 3 * k, 4 * k);
+      break;
+    case 'slow':
+      g.fillEllipse(cx - 1 * k, cy, 13 * k, 9 * k);
+      g.fillCircle(cx + 7 * k, cy + 2 * k, 2.8 * k);
+      g.lineBetween(cx - 5 * k, cy + 5 * k, cx + 3 * k, cy + 5 * k);
+      break;
+    case 'freeze':
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI;
+        g.lineBetween(cx - Math.cos(a) * 8 * k, cy - Math.sin(a) * 8 * k, cx + Math.cos(a) * 8 * k, cy + Math.sin(a) * 8 * k);
+      }
+      break;
+    case 'magnet':
+      g.beginPath();
+      g.arc(cx, cy, 5 * k, 0, Math.PI, false);
+      g.strokePath();
+      g.lineBetween(cx - 5 * k, cy, cx - 5 * k, cy - 7 * k);
+      g.lineBetween(cx + 5 * k, cy, cx + 5 * k, cy - 7 * k);
+      break;
+    case 'double':
+      g.strokeCircle(cx - 3.5 * k, cy, 5.5 * k);
+      g.strokeCircle(cx + 3.5 * k, cy, 5.5 * k);
+      break;
+    case 'baton':
+      g.lineStyle(3 * k, w, 1);
+      g.lineBetween(cx - 6 * k, cy + 6 * k, cx + 6 * k, cy - 6 * k);
+      g.fillCircle(cx - 6 * k, cy + 6 * k, 2.4 * k);
+      g.fillCircle(cx + 6 * k, cy - 6 * k, 2.4 * k);
+      break;
+    case 'flare':
+      g.fillTriangle(cx - 4 * k, cy + 2 * k, cx + 4 * k, cy + 2 * k, cx, cy - 8 * k);
+      g.fillCircle(cx, cy + 6 * k, 2.2 * k);
+      break;
+    case 'boomerang':
+      g.lineStyle(3 * k, w, 1);
+      g.lineBetween(cx - 7 * k, cy - 5 * k, cx, cy + 5 * k);
+      g.lineBetween(cx, cy + 5 * k, cx + 7 * k, cy - 5 * k);
       break;
     case 'chaos':
       // A lightning-tangled question mark: zig-zag bolt with a dot.

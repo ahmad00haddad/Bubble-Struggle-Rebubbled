@@ -142,18 +142,20 @@ export interface SnapMessage {
   li: number;
   /** Ticks since the level started (drives timed platforms on clients). */
   lt: number;
-  /** [slot, x, life, lives, score, flags, shield10, speed10, dbl10, lastSeq, ticksSince, facing, anchor10, fx, fxT10, fxPartner+1] */
+  /** [slot, x, life, lives, score, flags, shield10, speed10, dbl10, lastSeq, ticksSince, facing, anchor10, fx, fxT10, fxPartner+1] plus [wide10, boots10, potato10, mag10, boom10, sx10, don] while any rare crate effect is on */
   p: number[][];
   /** [id, size, x, y, vx, vy, flags(bit0 fast, bit1 rage)] + [specialKind, sa10, linkOrGroup, hitMask, seqPlace] for special orbs only */
   b: number[][];
-  /** [id, owner, x, tipY] plus [1, ttl10] for anchor harpoons */
+  /** [id, owner, x, tipY] plus [flags(1 anchor, 2 wide, 4 boomerang, 8 returning), ttl10] for special shots */
   h: number[][];
   /** [id, typeIndex, x, y, life10] */
   u: number[][];
-  /** Bombs: [id, x, y, fuse10] (omitted when none) */
+  /** Bombs: [id, x, y, fuse10] plus radius for decoy bombs (omitted when none) */
   x?: number[][];
   /** Sky event: [kindIndex, phase(0 warn|1 active), t10, a, ...lanes] (omitted when none) */
   s?: number[];
+  /** Slow Orbs: seconds left x10 (omitted when off) */
+  sl?: number;
   /** Heat as a percentage of the governor threshold (omitted when cold) */
   hl?: number;
   e?: TickedEvent[];

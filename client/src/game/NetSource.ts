@@ -1,4 +1,4 @@
-import { POWERUP, moveFxFromPlayers, type TickedEvent } from '@orb/shared';
+import { moveFxFromPlayers, speedMulOf, type TickedEvent } from '@orb/shared';
 import type { NetSession } from '../networking/NetSession';
 import { buildView } from './interpolate';
 import type { GameSource, ViewState } from './types';
@@ -37,7 +37,7 @@ export class NetSource implements GameSource {
       dtMs,
       latest?.phase === 'playing',
       !!me && me.active && me.life === 'alive',
-      me && me.speed > 0 ? POWERUP.speedMultiplier : 1,
+      me ? speedMulOf(me) : 1,
       latest ? moveFxFromPlayers(latest.players, s.slot) : undefined,
     );
     this.rt = s.buffer.renderTick(performance.now());

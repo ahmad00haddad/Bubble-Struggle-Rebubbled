@@ -2,6 +2,7 @@ export const SCENES = {
   boot: 'Boot',
   menu: 'Menu',
   howTo: 'HowTo',
+  powerups: 'PowerUps',
   settings: 'Settings',
   online: 'Online',
   lobby: 'Lobby',

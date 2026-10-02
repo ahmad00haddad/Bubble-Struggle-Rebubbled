@@ -1,4 +1,4 @@
-import { HARPOON, SKY, TICK_DT, activePlatforms, advanceBubble, orbSpeedMul, scaleProfile, type LevelConfig, type Snapshot } from '@orb/shared';
+import { HARPOON, RARE, SKY, TICK_DT, activePlatforms, advanceBubble, orbSpeedMul, scaleProfile, type LevelConfig, type Snapshot } from '@orb/shared';
 import type { ViewState } from './types';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -22,6 +22,7 @@ export function buildView(a: Snapshot, b: Snapshot | null, rt: number, level: Le
   const platforms = level ? activePlatforms(level, levelTicks) : [];
   // The server scales orb speed by the player count it had at level load; the active count is the best client-side match.
   const gravMul = a.sky?.kind === 'wobble' && a.sky.phase === 'active' ? SKY.wobbleGravity : 1;
+  const slowMul = a.slow > 0 ? RARE.slowMul : 1;
   const scaleSpeed = scaleProfile(a.players.filter((p) => p.active).length).speedMul;
 
   return {
@@ -31,6 +32,7 @@ export function buildView(a: Snapshot, b: Snapshot | null, rt: number, level: Le
     levelIndex: a.levelIndex,
     sky: a.sky,
     heat: a.heat,
+    slow: a.slow,
     levelTicks,
     players: a.players.map((p) => {
       const q = b?.players[p.slot];
@@ -38,10 +40,10 @@ export function buildView(a: Snapshot, b: Snapshot | null, rt: number, level: Le
       return { ...p, x };
     }),
     bubbles: a.bubbles.map((o) => {
-      const extra = { rage: o.rage, hot: o.hot, sp: o.sp, sa: o.sa, lk: o.lk, hm: o.hm, n: o.n };
-      if (!moving || dtTicks <= 0 || !level) return { id: o.id, size: o.size, x: o.x, y: o.y, fast: o.fast, ...extra };
+      const extra = { rage: o.rage, hot: o.hot, frozen: o.frozen, sp: o.sp, sa: o.sa, lk: o.lk, hm: o.hm, n: o.n };
+      if (!moving || dtTicks <= 0 || !level || o.frozen) return { id: o.id, size: o.size, x: o.x, y: o.y, fast: o.fast, ...extra };
       const c = { ...o };
-      advanceBubble(c, dtTicks * TICK_DT, platforms, orbSpeedMul(level, o.fast, scaleSpeed, o.rage, o.hot), gravMul);
+      advanceBubble(c, dtTicks * TICK_DT, platforms, orbSpeedMul(level, o.fast, scaleSpeed, o.rage, o.hot, slowMul), gravMul);
       return { id: c.id, size: c.size, x: c.x, y: c.y, fast: o.fast, ...extra };
     }),
     harpoons: a.harpoons.map((h) => {

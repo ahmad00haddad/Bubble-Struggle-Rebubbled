@@ -45,8 +45,8 @@ export function activePlatforms(level: LevelConfig, levelTicks: number): Rect[] 
 }
 
 /** Speed multiplier for one orb (level difficulty × fast-orb bonus). */
-export function orbSpeedMul(level: LevelConfig, fast: boolean | undefined, scaleSpeed = 1, rage = false, hot = false): number {
-  return level.difficulty.bubbleSpeed * scaleSpeed * (fast ? HAZARDS.fastOrbMultiplier : 1) * (rage ? SPECIAL.hardshell.rageMul : 1) * (hot ? HEAT.boostMul : 1);
+export function orbSpeedMul(level: LevelConfig, fast: boolean | undefined, scaleSpeed = 1, rage = false, hot = false, slow = 1): number {
+  return level.difficulty.bubbleSpeed * scaleSpeed * (fast ? HAZARDS.fastOrbMultiplier : 1) * (rage ? SPECIAL.hardshell.rageMul : 1) * (hot ? HEAT.boostMul : 1) * slow;
 }
 
 /** Does a Lancer at x stand on a spike strip? */

@@ -38,7 +38,7 @@ export class WorldLayers {
     for (const b of v.bubbles) {
       seen.add(b.id);
       let img = this.orbs.get(b.id);
-      const color = b.rage ? RAGE_COLOR : b.fast ? FAST_ORB_COLOR : b.sp ? SPECIAL_COLOR[b.sp] : this.orbColor;
+      const color = b.frozen ? 0x9ee7ff : b.rage ? RAGE_COLOR : b.fast ? FAST_ORB_COLOR : b.sp ? SPECIAL_COLOR[b.sp] : this.orbColor;
       const key = ensureOrbTexture(this.scene, b.size, color);
       if (!img) {
         img = this.scene.add.image(0, 0, key).setDepth(15);
@@ -66,14 +66,15 @@ export class WorldLayers {
     const seenH = new Set<number>();
     for (const h of v.harpoons) {
       seenH.add(h.id);
-      const color = PLAYER_COLORS[h.owner] ?? 0xffffff;
+      const color = h.bm !== undefined ? 0x70e000 : (PLAYER_COLORS[h.owner] ?? 0xffffff);
       const tipY = top + h.tipY;
       const floor = VIEW.arenaBottom;
       const anchor = !!h.anchor;
       const stuck = anchor && h.ttl !== undefined && h.ttl > 0 && h.tipY < 4 + 480;
-      g.lineStyle(anchor ? 13 : 7, anchor ? 0xff9f43 : color, anchor ? 0.3 + (stuck ? 0.12 * Math.sin(timeMs / 90) : 0) : 0.22);
+      const wide = !!h.wide;
+      g.lineStyle(anchor ? 13 : wide ? 22 : 7, anchor ? 0xff9f43 : color, anchor ? 0.3 + (stuck ? 0.12 * Math.sin(timeMs / 90) : 0) : 0.22);
       g.lineBetween(h.x, floor, h.x, tipY + 6);
-      g.lineStyle(2.5, 0xffffff, 0.95);
+      g.lineStyle(wide ? 6 : 2.5, 0xffffff, 0.95);
       g.beginPath();
       g.moveTo(h.x, floor);
       let up = true;
@@ -169,7 +170,7 @@ export class WorldLayers {
       g.fillStyle(blink ? 0xffe066 : 0xff7a00, 1);
       g.fillCircle(k.x + 4, y - r - 8, 3);
       g.lineStyle(1, 0xff3355, 0.25 + (urgent ? 0.3 : 0));
-      g.strokeCircle(k.x, y, (this.level?.bombs?.radius ?? 80));
+      g.strokeCircle(k.x, y, k.r ?? this.level?.bombs?.radius ?? 80);
     }
   }
 }

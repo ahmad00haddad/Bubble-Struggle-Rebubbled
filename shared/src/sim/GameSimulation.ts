@@ -10,6 +10,7 @@ import {
   PHYSICS,
   PLAYER,
   POWERUP,
+  RARE,
   SCORING,
   SKY,
   SPECIAL,
@@ -19,6 +20,7 @@ import {
   type BubbleSize,
   type PowerUpType,
   type ChaosKind,
+  type GiftEventType,
   type SkyKind,
   type SpecialKind,
 } from '../constants/game';
@@ -33,7 +35,7 @@ import type {
   SimStatus,
   SkyState,
 } from '../types/state';
-import { moveFxOf, movePlayerFx } from './physics';
+import { moveFxOf, movePlayerFx, speedMulOf } from './physics';
 import { advanceBubble, advanceHarpoon, advancePowerUp, anchorStickY, circleRectOverlap, harpoonRect, playerHitbox } from './physics';
 import { Rng } from './rng';
 import { activePlatforms, onSpikes, orbSpeedMul, spawnX } from './hazards';
@@ -69,6 +71,13 @@ function newPlayer(slot: number, active: boolean): PlayerState {
     cooldown: 0,
     hitThisLevel: false,
     anc: 0,
+    wide: 0,
+    boots: 0,
+    potato: 0,
+    mag: 0,
+    boom: 0,
+    sx: 0,
+    don: 0,
     fx: 0,
     fxT: 0,
     fxImm: 0,
@@ -106,6 +115,10 @@ export class GameSimulation {
   /** The one sky event in progress (warning or lasting effect), if any. */
   sky: SkyState | null = null;
   private skyPlan: SkyPlanEntry[] = [];
+  /** Slow Orbs: seconds left (0 = normal speed). */
+  slowT = 0;
+  /** Baton Crate: who holds it and how long a teammate has to pop an orb to share the shield. */
+  baton: { owner: number; t: number } | null = null;
   /** Rapid-popping meter (pops, decaying) and whether the governor is currently on. */
   heat = 0;
   hot = false;
@@ -158,6 +171,11 @@ export class GameSimulation {
     return this.heat / this.scale.heatThreshold;
   }
 
+  /** Orb speed factor from Slow Orbs. */
+  get orbSlow(): number {
+    return this.slowT > 0 ? RARE.slowMul : 1;
+  }
+
   /** Orb gravity factor: Gravity Wobble lightens it while active. */
   get gravMul(): number {
     return this.sky?.kind === 'wobble' && this.sky.phase === 'active' ? SKY.wobbleGravity : 1;
@@ -194,6 +212,8 @@ export class GameSimulation {
     this.initSpecials();
     this.heat = 0;
     this.hot = false;
+    this.slowT = 0;
+    this.baton = null;
     this.sky = null;
     this.skyRng = new Rng((this.seed ^ SKY.seedSalt ^ Math.imul(this.levelIndex + 1, 0x85ebca6b)) >>> 0);
     this.skyPlan = planSky(this.level, this.scale, this.skyRng);
@@ -208,6 +228,7 @@ export class GameSimulation {
       p.dbl = 0;
       p.cooldown = 0;
       p.anc = 0;
+      p.wide = p.boots = p.potato = p.mag = p.boom = p.sx = p.don = 0;
       p.fx = 0;
       p.fxT = 0;
       p.fxImm = 0;
@@ -349,7 +370,7 @@ export class GameSimulation {
       if (p.life !== 'alive') continue;
 
       this.stepFxTimer(p, dt);
-      const speedMul = p.speed > 0 ? POWERUP.speedMultiplier : 1;
+      const speedMul = speedMulOf(p);
       p.x = movePlayerFx(p.x, p.input, speedMul, moveFxOf(p.fx, p.fx > 0 && p.fxP >= 0 ? (this.players[p.fxP]?.x ?? null) : null), dt);
       if (p.input & INPUT.LEFT && !(p.input & INPUT.RIGHT)) p.facing = -1;
       else if (p.input & INPUT.RIGHT && !(p.input & INPUT.LEFT)) p.facing = 1;
@@ -360,7 +381,14 @@ export class GameSimulation {
       p.dbl = Math.max(0, p.dbl - dt);
       p.cooldown = Math.max(0, p.cooldown - dt);
       p.anc = Math.max(0, p.anc - dt);
+      p.wide = Math.max(0, p.wide - dt);
+      p.boots = Math.max(0, p.boots - dt);
+      p.potato = Math.max(0, p.potato - dt);
+      p.mag = Math.max(0, p.mag - dt);
+      p.boom = Math.max(0, p.boom - dt);
+      p.sx = Math.max(0, p.sx - dt);
       if (p.fx === CHAOS_KINDS.indexOf('jam') + 1) p.shootLatch = false; // jammed: the press is lost
+      if (p.potato > 0) p.shootLatch = false; // Hot Potato: fast, but you cannot shoot
 
       if (p.shootLatch) {
         p.shootLatch = false;
@@ -370,49 +398,95 @@ export class GameSimulation {
         if (p.cooldown <= 0 && mine < max) {
           p.cooldown = HARPOON.cooldown;
           const anchor = p.anc > 0 && !this.level.noAnchor;
+          const boom = !anchor && p.boom > 0 && !this.level.noAnchor;
           if (anchor) p.anc = 0;
-          this.harpoons.push({ id: this.nextId++, owner: p.slot, x: p.x, tipY: WORLD.height - PLAYER.height, ...(anchor ? { anchor: true } : {}) });
+          if (boom) p.boom = 0;
+          this.harpoons.push({
+            id: this.nextId++,
+            owner: p.slot,
+            x: p.x,
+            tipY: WORLD.height - PLAYER.height,
+            ...(anchor ? { anchor: true } : {}),
+            ...(boom ? { bm: 0 as const, bh: RARE.boomerangHits } : {}),
+            ...(p.wide > 0 ? { wide: true } : {}),
+          });
           this.emit({ k: 'shoot', p: p.slot, x: Math.round(p.x) });
         }
       }
     }
 
+    // --- Magnet Core: every few ticks small and medium orbs turn toward the Lancer -----
+    if (this.levelTicks % RARE.magnetEvery === 0) {
+      for (const p of this.players) {
+        if (!p.active || p.life !== 'alive' || p.mag <= 0) continue;
+        for (const b of this.bubbles) {
+          const dx = p.x - b.x;
+          if (b.size <= 1 && b.fz === undefined && Math.abs(dx) > 12) b.vx = Math.sign(dx) * Math.abs(b.vx);
+        }
+      }
+    }
+
     // --- Orbs --------------------------------------------------------------
-    for (const b of this.bubbles) advanceBubble(b, dt, platforms, orbSpeedMul(this.level, b.fast, this.scale.speedMul, b.rage, b.hot), this.gravMul);
+    const slow = this.orbSlow;
+    for (const b of this.bubbles) {
+      if (b.fz !== undefined) {
+        b.fz -= dt;
+        if (b.fz > 0) continue; // frozen: stays put
+        delete b.fz;
+        this.gift('thaw', -1, b.x, b.y);
+      }
+      advanceBubble(b, dt, platforms, orbSpeedMul(this.level, b.fast, this.scale.speedMul, b.rage, b.hot, slow), this.gravMul);
+    }
     this.stepHeat(dt);
+    this.stepSlow(dt);
+    if (this.baton && (this.baton.t -= dt) <= 0) this.baton = null;
     // Specials mutate only their own orb's fields here, never the array.
     for (const b of this.bubbles) if (b.sp) SPECIAL_DEFS[b.sp].onTick?.(this.specialHost, b, dt);
 
     // --- Harpoons: travel, then hit test along the whole tether -----------
     const survivors: HarpoonState[] = [];
     for (const h of this.harpoons) {
-      if (h.ttl === undefined) {
-        const tip = advanceHarpoon(h.x, h.tipY, dt, platforms);
+      const w = h.wide ? HARPOON.width * RARE.wideMul : HARPOON.width;
+      if (h.bm === 1) {
+        // Boomerang on its way back down.
+        h.tipY += HARPOON.speed * dt;
+        if (h.tipY >= WORLD.height - PLAYER.height) continue;
+      } else if (h.ttl === undefined) {
+        const tip = advanceHarpoon(h.x, h.tipY, dt, platforms, w);
         if (tip === null) {
-          if (!h.anchor) continue;
-          // Anchor: stick where the tether stopped and keep working for a few seconds.
-          h.tipY = anchorStickY(h.x, h.tipY, platforms);
-          h.ttl = ANCHOR.stickSeconds;
-          h.cd = 0;
-          this.emit({ k: 'anchor', p: h.owner, x: Math.round(h.x), y: Math.round(h.tipY) });
+          if (h.bm === 0) h.bm = 1;
+          else if (!h.anchor) continue;
+          else {
+            // Anchor: stick where the tether stopped and keep working for a few seconds.
+            h.tipY = anchorStickY(h.x, h.tipY, platforms, w);
+            h.ttl = ANCHOR.stickSeconds;
+            h.cd = 0;
+            this.emit({ k: 'anchor', p: h.owner, x: Math.round(h.x), y: Math.round(h.tipY) });
+          }
         } else h.tipY = tip;
       } else {
         h.ttl -= dt;
         if (h.ttl <= 0) continue;
       }
-      // Anchors are not spent by a hit (in flight or stuck); a short cooldown paces their pops.
-      if (h.anchor && (h.cd ?? 0) > 0) {
+      // Anchors and boomerangs are not spent by every hit; a short cooldown paces their pops.
+      if ((h.anchor || h.bm !== undefined) && (h.cd ?? 0) > 0) {
         h.cd = (h.cd ?? 0) - dt;
         survivors.push(h);
         continue;
       }
-      const rect = harpoonRect(h.x, h.tipY);
+      // A returning boomerang strikes with its head (44 px square), so it can catch the children of its first hit.
+      const rect = h.bm === 1 ? { x: h.x - 22, y: h.tipY - 22, w: 44, h: 44 } : harpoonRect(h.x, h.tipY, w);
       const idx = this.bubbles.findIndex((b) => !passesHarpoon(b) && circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius, rect));
       if (idx >= 0) {
         this.hitBubble(idx, h.owner, h.x);
         if (h.anchor) {
           h.cd = ANCHOR.hitCooldown;
           survivors.push(h);
+        } else if (h.bm !== undefined) {
+          // Boomerang pierces: it keeps going (up, then back down) until its hits are used.
+          h.bh = (h.bh ?? 1) - 1;
+          h.cd = 0.1;
+          if (h.bh > 0) survivors.push(h);
         }
         continue;
       }
@@ -431,7 +505,7 @@ export class GameSimulation {
     for (const p of this.players) {
       if (!p.active || p.life !== 'alive' || p.invuln > 0) continue;
       const box = playerHitbox(p.x);
-      const hit = this.bubbles.some((b) => !isIntangible(b) && circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius - 1, box));
+      const hit = this.bubbles.some((b) => b.fz === undefined && !isIntangible(b) && circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius - 1, box));
       if (hit || onSpikes(this.level, p.x)) this.damagePlayer(p);
     }
 
@@ -489,6 +563,10 @@ export class GameSimulation {
         if (!p.active) return 0;
         let b = SCORING.levelClear + secs * SCORING.timeBonusPerSecond;
         if (!p.hitThisLevel && p.life !== 'out') b += SCORING.survivalBonus;
+        if (p.don === 1) {
+          b *= 2; // Double or Nothing paid off
+          this.gift('donWin', p.slot, p.x, WORLD.height - 60);
+        }
         p.score += b;
         return b;
       });
@@ -504,7 +582,7 @@ export class GameSimulation {
 
   /** Orb spawned mid-level by an event (same speed rules as level-load orbs). */
   private spawnOrb(size: BubbleSize, x: number, y: number, dir: number, vy: number, fast: boolean): void {
-    const m = this.speedMul;
+    const m = this.speedMul * this.orbSlow;
     const f = fast ? HAZARDS.fastOrbMultiplier : 1;
     this.bubbles.push({ id: this.nextId++, size, x, y, vx: dir * BUBBLE_SIZES[size].speedX * m * f, vy: vy * m * f, ...(fast ? { fast: true } : {}) });
   }
@@ -550,10 +628,7 @@ export class GameSimulation {
     this.emit({ k: 'sky', t: 'start', kind: sky.kind, ...(sky.kind === 'gift' ? { x: sky.a } : {}) });
     switch (sky.kind) {
       case 'gift': {
-        const pool: Partial<Record<PowerUpType, number>> = { ...SKY.giftPool };
-        if (this.level.noAnchor) delete pool.anchor;
-        if (this.chaosOn()) pool.chaos = CHAOS.dropWeight * this.scale.chaosRate;
-        const type = r.weighted(pool);
+        const type = r.weighted(this.dropPool(SKY.giftPool));
         if (type) this.spawnPowerUp(type, sky.a, POWERUP.size / 2 + 2);
         break;
       }
@@ -662,8 +737,8 @@ export class GameSimulation {
 
   private stepBombs(dt: number, platforms: readonly { x: number; y: number; w: number; h: number }[]): void {
     const cfg = this.level.bombs;
-    if (!cfg) return;
-    if (this.levelTicks >= this.nextBombAt) {
+    if (!cfg && this.bombs.length === 0) return;
+    if (cfg && this.levelTicks >= this.nextBombAt) {
       this.nextBombAt = this.levelTicks + cfg.every * TICK_RATE;
       const x = 40 + this.rng.next() * (WORLD.width - 80);
       this.bombs.push({ id: this.nextId++, x, y: HAZARDS.bombSize, fuse: cfg.fuse, grounded: false });
@@ -691,12 +766,13 @@ export class GameSimulation {
         keep.push(b);
         continue;
       }
-      this.emit({ k: 'boom', x: Math.round(b.x), y: Math.round(b.y), r: cfg.radius });
+      this.emit({ k: 'boom', x: Math.round(b.x), y: Math.round(b.y), r: b.r ?? cfg?.radius ?? RARE.decoy.radius });
+      const radius = b.r ?? cfg?.radius ?? RARE.decoy.radius;
       for (const p of this.players) {
         if (!p.active || p.life !== 'alive' || p.invuln > 0) continue;
         const dx = p.x - b.x;
         const dy = WORLD.height - PLAYER.hitboxHeight / 2 - b.y;
-        if (dx * dx + dy * dy <= cfg.radius * cfg.radius) this.damagePlayer(p);
+        if (dx * dx + dy * dy <= radius * radius) this.damagePlayer(p);
       }
     }
     this.bombs = keep;
@@ -726,6 +802,12 @@ export class GameSimulation {
     p.speed = 0;
     p.dbl = 0;
     p.anc = 0;
+    p.wide = p.boots = p.potato = p.mag = p.boom = p.sx = 0;
+    if (p.don === 1) {
+      p.don = 2; // Double or Nothing: the 'nothing' part
+      p.score = Math.max(0, p.score - RARE.doubleLoss);
+      this.gift('donLose', p.slot, p.x, WORLD.height - 60);
+    }
     p.fx = 0;
     p.fxT = 0;
     p.fxP = -1;
@@ -745,7 +827,13 @@ export class GameSimulation {
     this.heat += 1;
     const pts = BUBBLE_SIZES[b.size].points;
     const scorer = this.players[by];
-    if (scorer) scorer.score += pts;
+    if (scorer) scorer.score += pts * (scorer.sx > 0 ? 2 : 1);
+    if (scorer && this.baton && by !== this.baton.owner && scorer.life === 'alive') {
+      // Baton Crate: the first teammate to pop an orb shares the shield.
+      scorer.shield = Math.max(scorer.shield, POWERUP.durations.shield);
+      this.gift('batonGive', by, scorer.x, WORLD.height - 60, this.baton.owner);
+      this.baton = null;
+    }
     this.bubbles.splice(index, 1);
     this.emit({ k: 'pop', id: b.id, s: b.size, x: Math.round(b.x), y: Math.round(b.y), by, pts });
 
@@ -756,7 +844,7 @@ export class GameSimulation {
       const vy = -PHYSICS.splitKickVy * m;
       const f = b.fast ? HAZARDS.fastOrbMultiplier : 1;
       // While the team runs hot, new children start a little faster for a few seconds.
-      const h = this.hot ? HEAT.boostMul : 1;
+      const h = (this.hot ? HEAT.boostMul : 1) * this.orbSlow;
       const heated = this.hot ? { hot: true, ht: HEAT.boostSeconds } : {};
       this.bubbles.push(
         { id: this.nextId++, size: child, x: b.x, y: b.y, vx: -vx * f * h, vy: vy * f * h, ...(b.fast ? { fast: true } : {}), ...heated },
@@ -766,7 +854,7 @@ export class GameSimulation {
 
     const pu = this.level.powerUps;
     if (this.powerups.length < POWERUP.maxOnField && this.rng.next() < pu.dropChance * this.scale.dropMul) {
-      const type = this.rng.weighted(this.chaosOn() ? { ...pu.pool, chaos: CHAOS.dropWeight * this.scale.chaosRate } : pu.pool);
+      const type = this.rng.weighted(this.dropPool(pu.pool));
       if (type) this.spawnPowerUp(type, b.x, b.y);
     }
   }
@@ -809,6 +897,170 @@ export class GameSimulation {
       case 'chaos':
         this.fireChaos(p);
         break;
+      default:
+        this.applyRare(p, type);
+        break;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rare crates
+  // ---------------------------------------------------------------------------
+
+  private gift(t: GiftEventType, p: number, x: number, y: number, to?: number): void {
+    this.emit({ k: 'gift', t, p, x: Math.round(x), y: Math.round(y), ...(to !== undefined ? { to } : {}) });
+  }
+
+  /** Drop odds for a pool: the level's own weights plus the rare crates this team can use. */
+  private dropPool(base: Partial<Record<PowerUpType, number>>): Partial<Record<PowerUpType, number>> {
+    const pool: Partial<Record<PowerUpType, number>> = { ...base, ...RARE.drops };
+    if (this.level.noAnchor) {
+      delete pool.anchor;
+      delete pool.boomerang;
+      delete pool.pinata;
+    }
+    if (this.chaosOn()) pool.chaos = CHAOS.dropWeight * this.scale.chaosRate;
+    if (this.scale.players >= 2 && this.specialHost.activePlayers() >= 2) {
+      pool.baton = RARE.mpDrops.baton;
+      if (this.players.some((q) => q.active && (q.life === 'dead' || q.life === 'out'))) pool.flare = RARE.flareWeight;
+    }
+    return pool;
+  }
+
+  private nearestOrb(x: number, ok: (b: BubbleState) => boolean): BubbleState | undefined {
+    let best: BubbleState | undefined;
+    for (const b of this.bubbles) if (ok(b) && (!best || Math.abs(b.x - x) < Math.abs(best.x - x))) best = b;
+    return best;
+  }
+
+  private applyRare(p: PlayerState, type: PowerUpType): void {
+    const y = WORLD.height - 60;
+    switch (type) {
+      case 'shrink': {
+        // Less clock, but your pops are worth double for a while. Never leaves less than a few seconds.
+        const cut = RARE.shrinkSeconds * TICK_RATE;
+        const floor = Math.min(this.timeLeftTicks, RARE.shrinkMinLeft * TICK_RATE);
+        this.timeLeftTicks = Math.max(floor, this.timeLeftTicks - cut);
+        p.sx = RARE.seconds.sx;
+        this.gift('shrink', p.slot, p.x, y);
+        break;
+      }
+      case 'boots':
+        p.boots = RARE.seconds.boots;
+        p.shield = Math.max(p.shield, POWERUP.durations.shield);
+        this.gift('boots', p.slot, p.x, y);
+        break;
+      case 'potato':
+        p.potato = RARE.seconds.potato;
+        this.gift('potato', p.slot, p.x, y);
+        break;
+      case 'wide':
+        p.wide = RARE.seconds.wide;
+        this.gift('wide', p.slot, p.x, y);
+        break;
+      case 'magnet':
+        p.mag = RARE.seconds.magnet;
+        this.gift('magnet', p.slot, p.x, y);
+        break;
+      case 'boomerang':
+        p.boom = RARE.boomerangCharge;
+        this.gift('boomerang', p.slot, p.x, y);
+        break;
+      case 'double':
+        p.don = 1;
+        this.gift('double', p.slot, p.x, y);
+        break;
+      case 'decoy':
+        // It looked like a Shield: a bomb now sits under you. Run.
+        this.bombs.push({ id: this.nextId++, x: p.x, y: WORLD.height - HAZARDS.bombSize / 2, fuse: RARE.decoy.fuse, grounded: true, r: RARE.decoy.radius });
+        this.gift('decoy', p.slot, p.x, y);
+        break;
+      case 'slow': {
+        if (this.slowT <= 0) {
+          for (const b of this.bubbles) {
+            b.vx *= RARE.slowMul;
+            b.vy *= RARE.slowMul;
+          }
+        }
+        this.slowT = RARE.seconds.slow;
+        this.gift('slow', p.slot, p.x, y);
+        break;
+      }
+      case 'freeze': {
+        const b = this.nearestOrb(p.x, (o) => o.fz === undefined);
+        if (b) {
+          b.fz = RARE.seconds.freeze;
+          this.gift('freeze', p.slot, b.x, b.y);
+        }
+        break;
+      }
+      case 'pinata': {
+        // The nearest plain small or medium orb breaks straight into pickups instead of children.
+        const b = this.nearestOrb(p.x, (o) => o.size <= 1 && !o.sp);
+        if (!b) {
+          const t = this.skyRng.weighted(RARE.goodPool);
+          if (t) this.spawnPowerUp(t, p.x, POWERUP.size);
+          break;
+        }
+        const idx = this.bubbles.indexOf(b);
+        const pts = BUBBLE_SIZES[b.size].points;
+        p.score += pts;
+        this.bubbles.splice(idx, 1);
+        this.emit({ k: 'pop', id: b.id, s: b.size, x: Math.round(b.x), y: Math.round(b.y), by: p.slot, pts });
+        const n = Math.min(RARE.pinataMax, b.size + 2);
+        for (let i = 0; i < n; i++) {
+          const t = this.skyRng.weighted(RARE.goodPool);
+          if (t) this.spawnPowerUp(t, b.x + (i - (n - 1) / 2) * 34, b.y);
+        }
+        this.gift('pinata', p.slot, b.x, b.y);
+        break;
+      }
+      case 'chest': {
+        const target = this.nearestOrb(p.x, (o) => o.size < 3 && !o.sp);
+        if (this.skyRng.next() < RARE.chestLife || !target) {
+          p.lives = Math.min(PLAYER.maxLives, p.lives + 1);
+          this.gift('chestLife', p.slot, p.x, y);
+        } else {
+          target.size = (target.size + 1) as BubbleSize;
+          this.gift('chestCurse', p.slot, target.x, target.y);
+        }
+        break;
+      }
+      case 'baton':
+        p.shield = Math.max(p.shield, POWERUP.durations.shield);
+        if (this.specialHost.activePlayers() >= 2) this.baton = { owner: p.slot, t: RARE.batonSeconds };
+        this.gift('baton', p.slot, p.x, y);
+        break;
+      case 'flare': {
+        const down = this.players.find((q) => q.active && q.slot !== p.slot && (q.life === 'dead' || q.life === 'out'));
+        if (!down) {
+          this.gift('flareFizzle', p.slot, p.x, y);
+          break;
+        }
+        if (down.life === 'out') down.lives = Math.max(1, down.lives);
+        down.life = 'alive';
+        down.respawnTimer = 0;
+        down.x = p.x;
+        down.invuln = PLAYER.invulnAfterRespawn;
+        this.emit({ k: 'respawn', p: down.slot });
+        this.gift('flare', p.slot, p.x, y, down.slot);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  /** Slow Orbs wears off: orbs return to their normal speed with the same arc shape. */
+  private stepSlow(dt: number): void {
+    if (this.slowT <= 0) return;
+    this.slowT -= dt;
+    if (this.slowT > 0) return;
+    this.slowT = 0;
+    for (const b of this.bubbles) {
+      b.vx /= RARE.slowMul;
+      b.vy /= RARE.slowMul;
+    }
+    this.gift('slowEnd', -1, WORLD.width / 2, 100);
   }
 }

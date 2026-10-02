@@ -6,7 +6,7 @@
 export const GAME_NAME = 'ORB LANCERS';
 
 /** Shown on the main menu. Bump it with every change that gets deployed (see CLAUDE.md). */
-export const GAME_VERSION = '1.1';
+export const GAME_VERSION = '1.2';
 
 /** Fixed simulation rate (server and solo). */
 export const TICK_RATE = 30;
@@ -85,6 +85,70 @@ export const ANCHOR = {
   hitCooldown: 0.35,
 } as const;
 
+/**
+ * Rare crates. Each one is a choice: take it when it helps, skip it when it would hurt.
+ * Weights below are added to every level's own drop pool (and to Gift Crates, doubled).
+ */
+export const RARE = {
+  /** Seconds each timed effect lasts. `sx` is the double-score window of Shrink Time. */
+  seconds: { wide: 8, boots: 8, potato: 6, magnet: 4, slow: 5, freeze: 5, sx: 10 },
+  /** Wide Tether: tether width factor. */
+  wideMul: 3,
+  /** Heavy Boots: movement factor (they also give a shield). Slow Orbs: orb speed factor. */
+  bootsMul: 0.6,
+  slowMul: 0.6,
+  /** Shrink Time: seconds cut from the clock, and the least it will ever leave. */
+  shrinkSeconds: 8,
+  shrinkMinLeft: 5,
+  /** Decoy Crate: it looks like a Shield; picking it drops a bomb with this fuse (s) and radius (px). */
+  decoy: { fuse: 1.5, radius: 70 },
+  /** Gamble Chest: chance of an extra life, otherwise a nearby orb grows one size. */
+  chestLife: 0.6,
+  /** Double or Nothing: score lost if you are hit after taking it. */
+  doubleLoss: 500,
+  /** Baton Crate: seconds a teammate has to pop an orb and share the shield. */
+  batonSeconds: 3,
+  /** Magnet Core pulls every this many ticks (discrete nudges, no continuous force). */
+  magnetEvery: 8,
+  /** Boomerang: seconds the pickup stays loaded. */
+  boomerangCharge: 15,
+  /** Boomerang pierces: it ends after this many hits (up or down), or when it is back at the floor. */
+  boomerangHits: 3,
+  /** Piñata Crate: most pickups an orb breaks into. */
+  pinataMax: 3,
+  /** Added to every level's drop pool (all levels, solo included). */
+  drops: { wide: 1, shrink: 0.5, boots: 0.5, potato: 0.5, pinata: 0.5, chest: 0.5, decoy: 1, slow: 0.5, freeze: 0.5, magnet: 0.5, double: 0.5, boomerang: 0.5 },
+  /** Teamwork crates: Baton always joins the pool in multiplayer, Flare only while a teammate is down. */
+  mpDrops: { baton: 1 },
+  flareWeight: 3,
+  /** What a Piñata gives (no pranks, no Decoy). */
+  goodPool: { shield: 3, doubleHarpoon: 3, speedBoost: 3, extraTime: 2, extraLife: 1, anchor: 1, wide: 2, magnet: 1, slow: 1 },
+} as const;
+
+/** What a rare crate reports to clients (sound, floating words). */
+export type GiftEventType =
+  | 'shrink'
+  | 'boots'
+  | 'potato'
+  | 'wide'
+  | 'pinata'
+  | 'chestLife'
+  | 'chestCurse'
+  | 'decoy'
+  | 'slow'
+  | 'slowEnd'
+  | 'freeze'
+  | 'thaw'
+  | 'magnet'
+  | 'double'
+  | 'donWin'
+  | 'donLose'
+  | 'baton'
+  | 'batonGive'
+  | 'flare'
+  | 'flareFizzle'
+  | 'boomerang';
+
 export const SCORING = {
   pickup: 50,
   levelClear: 1000,
@@ -93,7 +157,29 @@ export const SCORING = {
 } as const;
 
 /** Order is part of the snapshot format: append only. */
-export const POWERUP_TYPES = ['shield', 'extraLife', 'extraTime', 'doubleHarpoon', 'speedBoost', 'anchor', 'chaos'] as const;
+export const POWERUP_TYPES = [
+  'shield',
+  'extraLife',
+  'extraTime',
+  'doubleHarpoon',
+  'speedBoost',
+  'anchor',
+  'chaos',
+  'shrink',
+  'boots',
+  'potato',
+  'wide',
+  'pinata',
+  'chest',
+  'decoy',
+  'slow',
+  'freeze',
+  'magnet',
+  'double',
+  'baton',
+  'flare',
+  'boomerang',
+] as const;
 export type PowerUpType = (typeof POWERUP_TYPES)[number];
 
 export const POWERUP = {

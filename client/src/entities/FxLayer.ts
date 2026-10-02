@@ -87,6 +87,10 @@ export class FxLayer {
       const r = BUBBLE_SIZES[b.size].radius;
       const x = b.x;
       const y = top + b.y;
+      if (b.frozen) {
+        this.arc(x, y, r + 3, 0, Math.PI * 2, 0xdff9ff, 3, 0.9);
+        this.arc(x, y, r - 3, 0, Math.PI * 2, 0xffffff, 1.5, 0.5);
+      }
       if (b.hot) this.arc(x, y, r + 5, 0, Math.PI * 2, 0xff9f43, 2.5, 0.35 + 0.4 * pulse);
       switch (b.sp) {
         case 'hardshell':
@@ -194,6 +198,11 @@ export class FxLayer {
   private drawSky(v: ViewState, timeMs: number): void {
     const g = this.sky;
     g.clear();
+    if (v.slow > 0) {
+      g.fillStyle(0x6fa8ff, 0.07);
+      g.fillRect(0, VIEW.arenaY, WORLD.width, WORLD.height);
+      this.label('slowT', VIEW.width / 2, VIEW.arenaY + 20, `SLOW ORBS ${Math.ceil(v.slow)}`, '#9cc2ff', 9);
+    }
     const s = v.sky;
     if (!s) {
       this.skyText.setText('');

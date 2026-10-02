@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { BUBBLE_SIZES, INPUT, TICK_RATE, type PowerUpType, type TickedEvent } from '@orb/shared';
+import { BUBBLE_SIZES, INPUT, TICK_RATE, type TickedEvent } from '@orb/shared';
 import { orbColor, TEXTURES } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
 import { getSettings } from '../config/settings';
+import { POWERUP_INFO } from '../config/powerups';
 import { ArenaView } from '../entities/ArenaView';
 import { FxLayer } from '../entities/FxLayer';
 import { PlayerView } from '../entities/PlayerView';
@@ -26,15 +27,6 @@ export interface GameSceneData {
   startLevel?: number;
 }
 
-const PU_LABEL: Record<PowerUpType, string> = {
-  shield: 'SHIELD!',
-  extraLife: '1-UP!',
-  extraTime: '+TIME!',
-  doubleHarpoon: 'DOUBLE TETHER!',
-  speedBoost: 'SPEED UP!',
-  anchor: 'ANCHOR TETHER!',
-  chaos: 'CHAOS!',
-};
 
 export class GameScene extends Phaser.Scene {
   private source!: GameSource;
@@ -221,7 +213,7 @@ export class GameScene extends Phaser.Scene {
       case 'pickup':
         audio.play('pickup');
         this.burst(e.x, top + e.y, 0xffe066, 18, 160);
-        this.floatText(e.x, top + e.y - 26, PU_LABEL[e.type], PLAYER_CSS[e.p] ?? '#fff', 11);
+        this.floatText(e.x, top + e.y - 26, POWERUP_INFO[e.type].label, PLAYER_CSS[e.p] ?? '#fff', 11);
         break;
       case 'clear':
         this.clearBonus = e.bonus;
@@ -234,6 +226,9 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'sp':
         this.onSpecial(e, v);
+        break;
+      case 'gift':
+        this.onGift(e, v);
         break;
       case 'anchor':
         audio.play('anchor');
@@ -275,6 +270,72 @@ export class GameScene extends Phaser.Scene {
         if (e.ph === 'levelComplete') audio.play('levelComplete');
         if (e.ph === 'victory') audio.play('victory');
         if (e.ph === 'gameOver') audio.play('gameOver');
+        break;
+    }
+  }
+
+  /** Rare-crate outcomes: only the ones that need a word of their own (the pickup label covers the rest). */
+  private onGift(e: Extract<TickedEvent, { k: 'gift' }>, v: ViewState): void {
+    const x = e.x;
+    const y = VIEW.arenaY + e.y;
+    const say = (text: string, color: string, size = 10) => this.floatText(x, y - 28, text, color, size);
+    switch (e.t) {
+      case 'chestLife':
+        audio.play('combo');
+        this.burst(x, y, 0x5cf2a0, 20, 200);
+        say('+1 LIFE!', '#5cf2a0', 12);
+        break;
+      case 'chestCurse':
+        audio.play('deny');
+        this.burst(x, y, 0xff3355, 18, 180);
+        say('CURSED! IT GREW', '#ff6680', 11);
+        break;
+      case 'decoy':
+        audio.play('warn');
+        say('BOMB! RUN!', '#ff6680', 13);
+        break;
+      case 'pinata':
+        audio.play('combo');
+        this.burst(x, y, 0xff70a6, 30, 260);
+        break;
+      case 'freeze':
+        audio.play('sync');
+        this.burst(x, y, 0xbff3ff, 16, 160);
+        break;
+      case 'thaw':
+        audio.play('hit', { pitch: 1.4 });
+        break;
+      case 'slow':
+        audio.play('fuse');
+        break;
+      case 'slowEnd':
+        audio.play('hit', { pitch: 0.8 });
+        break;
+      case 'donWin':
+        audio.play('combo');
+        say('DOUBLE BONUS!', '#ffe066', 12);
+        break;
+      case 'donLose':
+        audio.play('deny');
+        say('NOTHING! -500', '#ff6680', 11);
+        break;
+      case 'batonGive': {
+        audio.play('combo');
+        const from = e.to !== undefined ? v.players[e.to] : undefined;
+        say('SHARED SHIELD!', '#4cc9f0', 11);
+        if (from) this.burst(from.x, VIEW.arenaBottom - 24, 0x4cc9f0, 14, 160);
+        break;
+      }
+      case 'flare':
+        audio.play('combo');
+        this.burst(x, y, 0xff6b35, 28, 240);
+        say('REVIVED!', '#ff9f43', 13);
+        break;
+      case 'flareFizzle':
+        audio.play('deny');
+        say('NOBODY DOWN', '#9aa3c7', 9);
+        break;
+      default:
         break;
     }
   }

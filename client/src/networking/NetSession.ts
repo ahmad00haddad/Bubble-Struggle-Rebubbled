@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  POWERUP,
+  speedMulOf,
   decodeSnapshot,
   moveFxFromPlayers,
   type ErrorCode,
@@ -146,7 +146,7 @@ export class NetSession extends Phaser.Events.EventEmitter {
         const s = decodeSnapshot(m);
         this.buffer.push(s, performance.now());
         const me = s.players[this.slot];
-        if (me) this.prediction.reconcile(me, s.phase === 'playing', me.speed > 0 ? POWERUP.speedMultiplier : 1, moveFxFromPlayers(s.players, this.slot));
+        if (me) this.prediction.reconcile(me, s.phase === 'playing', speedMulOf(me), moveFxFromPlayers(s.players, this.slot));
         break;
       }
       case 'error':

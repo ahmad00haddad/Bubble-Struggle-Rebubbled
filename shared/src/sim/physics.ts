@@ -1,4 +1,4 @@
-import { BUBBLE_SIZES, CHAOS, CHAOS_KINDS, HARPOON, INPUT, PHYSICS, PLAYER, POWERUP, TICK_DT, WORLD, bounceVelocity } from '../constants/game';
+import { BUBBLE_SIZES, CHAOS, CHAOS_KINDS, HARPOON, RARE, INPUT, PHYSICS, PLAYER, POWERUP, TICK_DT, WORLD, bounceVelocity } from '../constants/game';
 import type { Rect } from '../types/level';
 import type { BubbleState, PowerUpState } from '../types/state';
 
@@ -46,6 +46,11 @@ export function movePlayerFx(x: number, input: number, speedMul: number, fx: Mov
   return clamp(nx, fx.tetherX - range, fx.tetherX + range);
 }
 
+/** Everything that changes how fast a Lancer runs, in one place (simulation and client prediction). */
+export function speedMulOf(p: { speed: number; potato: number; boots: number }): number {
+  return (p.speed > 0 || p.potato > 0 ? POWERUP.speedMultiplier : 1) * (p.boots > 0 ? RARE.bootsMul : 1);
+}
+
 export function playerHitbox(x: number): Rect {
   return {
     x: x - PLAYER.hitboxWidth / 2,
@@ -55,8 +60,8 @@ export function playerHitbox(x: number): Rect {
   };
 }
 
-export function harpoonRect(x: number, tipY: number): Rect {
-  return { x: x - HARPOON.width / 2, y: tipY, w: HARPOON.width, h: WORLD.height - tipY };
+export function harpoonRect(x: number, tipY: number, width: number = HARPOON.width): Rect {
+  return { x: x - width / 2, y: tipY, w: width, h: WORLD.height - tipY };
 }
 
 function collideBubblePlatform(b: BubbleState, p: Rect, speedMul: number): void {
@@ -161,9 +166,9 @@ export function advancePowerUp(u: PowerUpState, dt: number, platforms: readonly 
  * Advance a harpoon tip. Returns the new tip y, or null when the tether hits the
  * ceiling or the underside of a platform.
  */
-export function advanceHarpoon(x: number, tipY: number, dt: number, platforms: readonly Rect[]): number | null {
+export function advanceHarpoon(x: number, tipY: number, dt: number, platforms: readonly Rect[], width: number = HARPOON.width): number | null {
   const newTip = tipY - HARPOON.speed * dt;
-  const hw = HARPOON.width / 2;
+  const hw = width / 2;
   for (const p of platforms) {
     if (x + hw <= p.x || x - hw >= p.x + p.w) continue;
     const bottom = p.y + p.h;
@@ -177,8 +182,8 @@ export function advanceHarpoon(x: number, tipY: number, dt: number, platforms: r
  * Where an anchor harpoon sticks when its tether stops: the ceiling (0), or the underside of
  * the platform it ran into. Call with the tip position from before the blocked move.
  */
-export function anchorStickY(x: number, tipY: number, platforms: readonly Rect[]): number {
-  const hw = HARPOON.width / 2;
+export function anchorStickY(x: number, tipY: number, platforms: readonly Rect[], width: number = HARPOON.width): number {
+  const hw = width / 2;
   let y = 0;
   for (const p of platforms) {
     if (x + hw <= p.x || x - hw >= p.x + p.w) continue;

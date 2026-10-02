@@ -1,4 +1,4 @@
-import type { BubbleSize, ChaosKind, PowerUpType, SkyKind, SpecialEventType, SpecialKind } from '../constants/game';
+import type { BubbleSize, ChaosKind, GiftEventType, PowerUpType, SkyKind, SpecialEventType, SpecialKind } from '../constants/game';
 
 export type LifeState = 'alive' | 'dead' | 'out';
 
@@ -25,6 +25,17 @@ export interface PlayerState {
   hitThisLevel: boolean;
   /** Seconds the Anchor pickup stays loaded (0 = none). The next shot becomes an anchor. */
   anc: number;
+  /** Timed effects, seconds left (0 = off). */
+  wide: number;
+  boots: number;
+  potato: number;
+  mag: number;
+  /** Seconds Boomerang stays loaded; the next shot returns. */
+  boom: number;
+  /** Score-doubling seconds left (Shrink Time). */
+  sx: number;
+  /** Double or Nothing: 0 none, 1 running, 2 lost. */
+  don: number;
   /** Chaos effect on this Lancer: 0 = none, else CHAOS_KINDS index + 1. */
   fx: number;
   /** Seconds the effect has left. */
@@ -46,6 +57,8 @@ export interface BubbleState {
   vx: number;
   vy: number;
   fast?: boolean;
+  /** Freeze Orb: seconds left frozen (no movement, harmless to Lancers). */
+  fz?: number;
   /** Spawned while the team ran hot: faster for a few seconds (HEAT.boostMul). */
   hot?: boolean;
   /** Server-only: seconds of heat boost left. */
@@ -66,6 +79,8 @@ export interface BubbleState {
 
 export interface BombState {
   id: number;
+  /** Blast radius for bombs that do not come from the level's bomb hazard (Decoy). */
+  r?: number;
   x: number;
   /** Center y. */
   y: number;
@@ -84,6 +99,12 @@ export interface HarpoonState {
   anchor?: boolean;
   /** Anchor: seconds of sticking left. Defined only once stuck. */
   ttl?: number;
+  /** Wide Tether shot. */
+  wide?: boolean;
+  /** Boomerang: 0 going up, 1 coming back. */
+  bm?: 0 | 1;
+  /** Boomerang: hits left before it ends. */
+  bh?: number;
   /** Anchor: seconds until the tether may pop again. It keeps flying after a hit. */
   cd?: number;
 }
@@ -130,6 +151,7 @@ export type SimEvent =
   | { k: 'sp'; t: SpecialEventType; id: number; x: number; y: number }
   | { k: 'anchor'; p: number; x: number; y: number }
   | { k: 'heat'; on: boolean }
+  | { k: 'gift'; t: GiftEventType; p: number; x: number; y: number; to?: number }
   | { k: 'chaos'; t: ChaosKind | 'fizzle' | 'end'; by: number; to: number }
   | { k: 'sky'; t: 'warn' | 'start' | 'end'; kind: SkyKind; x?: number }
   | { k: 'phase'; ph: MatchPhase };
