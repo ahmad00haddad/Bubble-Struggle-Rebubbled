@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BUBBLE_SIZES, CHAOS_KINDS, SKY, SPECIAL, WORLD, ghostStage, type SpecialKind } from '@orb/shared';
 import { PLAYER_COLORS, VIEW } from '../config/clientConfig';
 import type { ViewState } from '../game/types';
+import { setLabel } from '../ui/text';
 import { TEXT } from '../ui/theme';
 
 /** Tint per special kind (orb body colour). Normal orbs keep the level's own colour. */
@@ -61,7 +62,8 @@ export class FxLayer {
       t = this.scene.add.text(0, 0, text, TEXT.display(size, color)).setOrigin(0.5).setDepth(18).setShadow(2, 2, '#000', 0, false, true);
       this.texts.set(key, t);
     }
-    t.setPosition(x, y).setText(text).setColor(color).setVisible(true);
+    t.setPosition(x, y).setVisible(true);
+    setLabel(t, text, color);
   }
 
   private arc(x: number, y: number, r: number, from: number, to: number, color: number, w: number, a = 1): void {
@@ -227,7 +229,7 @@ export class FxLayer {
     if (s.kind === 'gift') {
       beam(s.a, 30, 0xffe066);
       warn(s.a, 0xffe066);
-      this.skyText.setText('SUPPLY DROP!').setColor('#ffe066');
+      setLabel(this.skyText, 'SUPPLY DROP!', '#ffe066');
     } else if (s.kind === 'comet') {
       const fromLeft = s.a > 0;
       const x = fromLeft ? 30 : WORLD.width - 30;
@@ -236,22 +238,22 @@ export class FxLayer {
       warn(x, 0xff3355);
       g.lineStyle(2, 0xff3355, 0.5);
       g.lineBetween(x, top + 60, fromLeft ? WORLD.width : 0, top + 60);
-      this.skyText.setText('COMET!').setColor('#ff6680');
+      setLabel(this.skyText, 'COMET!', '#ff6680');
     } else if (s.kind === 'hail') {
       for (const x of s.lanes) {
         beam(x, 24, 0x7fd8ff);
         warn(x, 0x7fd8ff);
       }
-      this.skyText.setText('HAIL INCOMING!').setColor('#9fe3ff');
+      setLabel(this.skyText, 'HAIL INCOMING!', '#9fe3ff');
     } else if (s.kind === 'wobble') {
-      if (s.phase === 'warn') this.skyText.setText('GRAVITY SHIFT…').setColor('#b9a7ff');
+      if (s.phase === 'warn') setLabel(this.skyText, 'GRAVITY SHIFT…', '#b9a7ff');
       else {
         g.fillStyle(0x7a5cff, 0.07 + 0.03 * Math.sin(timeMs / 300));
         g.fillRect(0, top, WORLD.width, WORLD.height);
         const w = 240 * Math.min(1, s.t / SKY.wobbleSeconds);
         g.fillStyle(0xb9a7ff, 0.9);
         g.fillRect(WORLD.width / 2 - 120, top + 74, w, 4);
-        this.skyText.setText('LOW GRAVITY').setColor('#b9a7ff');
+        setLabel(this.skyText, 'LOW GRAVITY', '#b9a7ff');
       }
     }
   }

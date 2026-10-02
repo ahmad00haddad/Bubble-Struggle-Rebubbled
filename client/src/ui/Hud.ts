@@ -3,6 +3,7 @@ import { TICK_RATE, type PowerUpType } from '@orb/shared';
 import { TEXTURES, TEX_SCALE } from '../assets/textures';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
 import type { ViewPlayer, ViewState } from '../game/types';
+import { setLabel } from './text';
 import { COLORS, TEXT } from './theme';
 
 const MAX_HEARTS = 5;
@@ -95,7 +96,7 @@ export class Hud {
     const secs = Math.max(0, Math.ceil(v.timeLeftTicks / TICK_RATE));
     this.timer.setText(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`);
     const low = secs <= 10 && v.phase === 'playing';
-    this.timer.setColor(low ? COLORS.bad : COLORS.text);
+    setLabel(this.timer, this.timer.text, low ? COLORS.bad : COLORS.text);
     this.timer.setScale(low ? 1 + 0.08 * Math.abs(Math.sin(this.scene.time.now / 160)) : 1);
     this.drawHeat(v);
     this.levelText.setText(`LEVEL ${v.levelIndex + 1}/${levelCount}`);
@@ -168,6 +169,6 @@ export class Hud {
   }
 
   setNet(text: string, color: string): void {
-    this.net.setText(text).setColor(color);
+    setLabel(this.net, text, color);
   }
 }

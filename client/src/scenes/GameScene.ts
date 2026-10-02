@@ -35,6 +35,7 @@ export class GameScene extends Phaser.Scene {
   private arena!: ArenaView;
   private layers!: WorldLayers;
   private fx!: FxLayer;
+  private lastView: ViewState | null = null;
   private players!: PlayerView[];
   private hud!: Hud;
   private overlay!: Phaser.GameObjects.Container;
@@ -59,6 +60,8 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.fadeIn(200, 7, 10, 31);
     this.leaving = false;
     this.fatal = null;
+    this.emitters.clear();
+    this.lastView = null;
     this.overlayKey = '';
     this.levelId = '';
     this.lastPhase = '';
@@ -108,7 +111,7 @@ export class GameScene extends Phaser.Scene {
 
   override update(time: number, delta: number): void {
     if (this.leaving || !this.source) return;
-    const pre = this.source.view();
+    const pre = this.lastView; // last frame's view: building it twice per frame was wasted work
     const me = pre?.players[this.source.localSlot];
     const playing = pre?.phase === 'playing';
 
@@ -125,6 +128,7 @@ export class GameScene extends Phaser.Scene {
 
     this.source.update(delta, bits);
     const v = this.source.view();
+    this.lastView = v;
     if (!v) {
       this.banner.setText(this.session?.status === 'reconnecting' ? 'RECONNECTING…' : 'SYNCING WITH SERVER…');
       return;
@@ -407,36 +411,53 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Particle bursts reuse a few long-lived emitters (one per speed class) instead of creating and
+   * destroying two emitters per pop, which got expensive when four players pop at once.
+   */
+  private emitters = new Map<string, Phaser.GameObjects.Particles.ParticleEmitter>();
+
+  private emitter(kind: 'spark' | 'shard', speed: number): Phaser.GameObjects.Particles.ParticleEmitter {
+    const cls = speed <= 160 ? 150 : speed <= 260 ? 240 : 340;
+    const key = `${kind}${cls}`;
+    let em = this.emitters.get(key);
+    if (!em) {
+      em =
+        kind === 'spark'
+          ? this.add.particles(0, 0, TEXTURES.spark, {
+              speed: { min: cls * 0.3, max: cls },
+              angle: { min: 0, max: 360 },
+              scale: { start: 0.7, end: 0 },
+              alpha: { start: 1, end: 0 },
+              lifespan: { min: 300, max: 650 },
+              gravityY: 380,
+              blendMode: Phaser.BlendModes.ADD,
+              maxAliveParticles: 90,
+              emitting: false,
+            })
+          : this.add.particles(0, 0, TEXTURES.shard, {
+              speed: { min: cls * 0.5, max: cls * 1.2 },
+              angle: { min: 0, max: 360 },
+              rotate: { start: 0, end: 360 },
+              scale: { start: 0.8, end: 0.2 },
+              lifespan: 500,
+              gravityY: 520,
+              maxAliveParticles: 40,
+              emitting: false,
+            });
+      em.setDepth(kind === 'spark' ? 30 : 29);
+      this.emitters.set(key, em);
+    }
+    return em;
+  }
+
   private burst(x: number, y: number, tint: number, count: number, speed: number): void {
-    const em = this.add.particles(x, y, TEXTURES.spark, {
-      speed: { min: speed * 0.3, max: speed },
-      angle: { min: 0, max: 360 },
-      scale: { start: 0.7, end: 0 },
-      alpha: { start: 1, end: 0 },
-      lifespan: { min: 300, max: 650 },
-      gravityY: 380,
-      tint: [tint, 0xffffff],
-      blendMode: Phaser.BlendModes.ADD,
-      emitting: false,
-    });
-    em.setDepth(30);
-    em.explode(count);
-    const shards = this.add.particles(x, y, TEXTURES.shard, {
-      speed: { min: speed * 0.5, max: speed * 1.2 },
-      angle: { min: 0, max: 360 },
-      rotate: { start: 0, end: 360 },
-      scale: { start: 0.8, end: 0.2 },
-      lifespan: 500,
-      gravityY: 520,
-      tint,
-      emitting: false,
-    });
-    shards.setDepth(29);
-    shards.explode(Math.ceil(count / 3));
-    this.time.delayedCall(900, () => {
-      em.destroy();
-      shards.destroy();
-    });
+    const sparks = this.emitter('spark', speed);
+    sparks.setParticleTint(tint);
+    sparks.explode(Math.min(count, 28), x, y);
+    const shards = this.emitter('shard', speed);
+    shards.setParticleTint(tint);
+    shards.explode(Math.min(Math.ceil(count / 3), 10), x, y);
   }
 
   private floatText(x: number, y: number, text: string, color: string, size: number): void {

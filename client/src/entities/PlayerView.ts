@@ -3,6 +3,7 @@ import { CHAOS_KINDS } from '@orb/shared';
 import { LANCER_FRAMES, TEXTURES, TEX_SCALE } from '../assets/textures';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
 import type { ViewPlayer } from '../game/types';
+import { setLabel } from '../ui/text';
 import { TEXT } from '../ui/theme';
 
 /** Visual representation of one Lancer. Pure presentation — no game logic. */
@@ -26,6 +27,7 @@ export class PlayerView {
     this.tag = scene.add
       .text(0, -66, '', TEXT.display(9, PLAYER_CSS[slot]))
       .setOrigin(0.5)
+      .setAlign('center')
       .setShadow(2, 2, '#000', 0, false, true);
     this.fxText = scene.add.text(0, -80, '', TEXT.display(8, '#e879f9')).setOrigin(0.5).setShadow(2, 2, '#000', 0, false, true);
     this.anchorRing = scene.add.image(0, -24, TEXTURES.ring).setTint(0xff9f43).setAlpha(0.7).setScale(1.1).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
@@ -41,7 +43,7 @@ export class PlayerView {
     }
     this.root.setVisible(true);
     this.root.x = p.x;
-    this.tag.setText(isLocal ? `${name}\n▼` : name).setAlign('center');
+    setLabel(this.tag, isLocal ? `${name}\n▼` : name);
 
     const dead = p.life === 'dead';
     const moved = Number.isFinite(this.lastX) && Math.abs(p.x - this.lastX) > 0.25;
@@ -97,7 +99,7 @@ export class PlayerView {
     else if (loaded) tags.push('ANCHOR');
     if (p.don === 1) tags.push('DOUBLE?');
     if (p.sx > 0) tags.push('x2');
-    this.fxText.setText(dead ? '' : fxName ? `${fxName}!` : tags.slice(0, 2).join(' ')).setColor(fxName ? '#e879f9' : '#ff9f43');
+    setLabel(this.fxText, dead ? '' : fxName ? `${fxName}!` : tags.slice(0, 2).join(' '), fxName ? '#e879f9' : '#ff9f43');
   }
 
   get color(): number {

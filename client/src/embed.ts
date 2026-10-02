@@ -50,6 +50,7 @@ export function mountGame(parent: HTMLElement, opts: MountOptions = {}): GameHan
     backgroundColor: '#070a1f',
     pixelArt: false,
     antialias: true,
+    render: { powerPreference: 'high-performance' },
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
