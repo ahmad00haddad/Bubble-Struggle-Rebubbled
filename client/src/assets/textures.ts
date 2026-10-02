@@ -163,6 +163,7 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
     doubleHarpoon: 0xb388ff,
     speedBoost: 0x5cf2a0,
     anchor: 0xff9f43,
+    chaos: 0xd946ef,
   };
   const c = colors[type];
   g.fillStyle(shade(c, -0.45), 1);
@@ -223,6 +224,14 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
       g.lineBetween(cx, cy + 7 * k, cx, cy - 4 * k);
       g.lineBetween(cx - 5 * k, cy - 7 * k, cx + 5 * k, cy - 7 * k);
       g.fillTriangle(cx - 4 * k, cy - 3 * k, cx + 4 * k, cy - 3 * k, cx, cy - 8.5 * k);
+      break;
+    case 'chaos':
+      // A lightning-tangled question mark: zig-zag bolt with a dot.
+      g.lineBetween(cx - 5 * k, cy - 7 * k, cx + 1 * k, cy - 7 * k);
+      g.lineBetween(cx + 1 * k, cy - 7 * k, cx - 3 * k, cy);
+      g.lineBetween(cx - 3 * k, cy, cx + 4 * k, cy);
+      g.lineBetween(cx + 4 * k, cy, cx - 1 * k, cy + 5 * k);
+      g.fillCircle(cx - 1 * k, cy + 8 * k, 1.6 * k);
       break;
   }
 }

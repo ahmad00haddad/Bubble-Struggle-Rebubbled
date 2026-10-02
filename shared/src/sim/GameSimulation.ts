@@ -5,6 +5,8 @@ import {
   HARPOON,
   INPUT,
   ANCHOR,
+  CHAOS,
+  CHAOS_KINDS,
   PHYSICS,
   PLAYER,
   POWERUP,
@@ -16,6 +18,7 @@ import {
   WORLD,
   type BubbleSize,
   type PowerUpType,
+  type ChaosKind,
   type SkyKind,
 } from '../constants/game';
 import type { LevelConfig } from '../types/level';
@@ -29,7 +32,8 @@ import type {
   SimStatus,
   SkyState,
 } from '../types/state';
-import { advanceBubble, advanceHarpoon, advancePowerUp, anchorStickY, circleRectOverlap, harpoonRect, movePlayerX, playerHitbox } from './physics';
+import { moveFxOf, movePlayerFx } from './physics';
+import { advanceBubble, advanceHarpoon, advancePowerUp, anchorStickY, circleRectOverlap, harpoonRect, playerHitbox } from './physics';
 import { Rng } from './rng';
 import { activePlatforms, onSpikes, orbSpeedMul, spawnX } from './hazards';
 import { scaleProfile, type ScaleProfile } from './scaling';
@@ -41,6 +45,8 @@ export interface SimOptions {
   /** One entry per seat; true = participating. Length is the seat count (1 or 2). */
   activeSlots: boolean[];
   seed: number;
+  /** Chaos pickups allowed (host setting, default on). They also need 2+ Lancers. */
+  chaos?: boolean;
 }
 
 function newPlayer(slot: number, active: boolean): PlayerState {
@@ -62,6 +68,10 @@ function newPlayer(slot: number, active: boolean): PlayerState {
     cooldown: 0,
     hitThisLevel: false,
     anc: 0,
+    fx: 0,
+    fxT: 0,
+    fxImm: 0,
+    fxP: -1,
     lastSeq: 0,
     ticksSinceSeq: 0,
   };
@@ -99,6 +109,8 @@ export class GameSimulation {
   heat = 0;
   hot = false;
   private skyRng: Rng;
+  private chaosRng: Rng;
+  readonly chaosEnabled: boolean;
   private nextBombAt = Infinity;
   private nextId = 1;
   private placedSpawned = new Set<number>();
@@ -111,6 +123,8 @@ export class GameSimulation {
     this.seed = opts.seed >>> 0;
     this.specialRng = new Rng(this.seed ^ SPECIAL.seedSalt);
     this.skyRng = new Rng(this.seed ^ SKY.seedSalt);
+    this.chaosRng = new Rng(this.seed ^ CHAOS.seedSalt);
+    this.chaosEnabled = opts.chaos !== false;
     const self = this;
     this.specialHost = {
       get rng() {
@@ -182,6 +196,7 @@ export class GameSimulation {
     this.sky = null;
     this.skyRng = new Rng((this.seed ^ SKY.seedSalt ^ Math.imul(this.levelIndex + 1, 0x85ebca6b)) >>> 0);
     this.skyPlan = planSky(this.level, this.scale, this.skyRng);
+    this.chaosRng = new Rng((this.seed ^ CHAOS.seedSalt ^ Math.imul(this.levelIndex + 1, 0xc2b2ae35)) >>> 0);
     for (const p of this.players) {
       p.x = spawnX(this.level, p.slot);
       p.facing = 1;
@@ -192,6 +207,10 @@ export class GameSimulation {
       p.dbl = 0;
       p.cooldown = 0;
       p.anc = 0;
+      p.fx = 0;
+      p.fxT = 0;
+      p.fxImm = 0;
+      p.fxP = -1;
       p.hitThisLevel = false;
       if (p.active && p.life === 'dead') p.life = p.lives > 0 ? 'alive' : 'out';
     }
@@ -305,8 +324,9 @@ export class GameSimulation {
       }
       if (p.life !== 'alive') continue;
 
+      this.stepFxTimer(p, dt);
       const speedMul = p.speed > 0 ? POWERUP.speedMultiplier : 1;
-      p.x = movePlayerX(p.x, p.input, speedMul, dt);
+      p.x = movePlayerFx(p.x, p.input, speedMul, moveFxOf(p.fx, p.fx > 0 && p.fxP >= 0 ? (this.players[p.fxP]?.x ?? null) : null), dt);
       if (p.input & INPUT.LEFT && !(p.input & INPUT.RIGHT)) p.facing = -1;
       else if (p.input & INPUT.RIGHT && !(p.input & INPUT.LEFT)) p.facing = 1;
 
@@ -316,6 +336,7 @@ export class GameSimulation {
       p.dbl = Math.max(0, p.dbl - dt);
       p.cooldown = Math.max(0, p.cooldown - dt);
       p.anc = Math.max(0, p.anc - dt);
+      if (p.fx === CHAOS_KINDS.indexOf('jam') + 1) p.shootLatch = false; // jammed: the press is lost
 
       if (p.shootLatch) {
         p.shootLatch = false;
@@ -507,6 +528,7 @@ export class GameSimulation {
       case 'gift': {
         const pool: Partial<Record<PowerUpType, number>> = { ...SKY.giftPool };
         if (this.level.noAnchor) delete pool.anchor;
+        if (this.chaosOn()) pool.chaos = CHAOS.dropWeight * this.scale.chaosRate;
         const type = r.weighted(pool);
         if (type) this.spawnPowerUp(type, sky.a, POWERUP.size / 2 + 2);
         break;
@@ -552,6 +574,66 @@ export class GameSimulation {
       this.hot = false;
       this.emit({ k: 'heat', on: false });
     }
+  }
+
+  /** Chaos is live: host allows it, the team profile allows it, and 2+ Lancers can still play. */
+  chaosOn(): boolean {
+    return this.chaosEnabled && this.scale.chaos && this.specialHost.activePlayers() >= 2;
+  }
+
+  /** An orb close to a Lancer's body makes that Lancer a bad target (never an unavoidable hit). */
+  private bodySafe(x: number): boolean {
+    const cy = WORLD.height - PLAYER.hitboxHeight / 2;
+    return !this.bubbles.some((b) => Math.hypot(b.x - x, b.y - cy) < BUBBLE_SIZES[b.size].radius + CHAOS.dangerRadius);
+  }
+
+  private stepFxTimer(p: PlayerState, dt: number): void {
+    if (p.fx === 0) {
+      p.fxImm = Math.max(0, p.fxImm - dt);
+      return;
+    }
+    p.fxT -= dt;
+    const tether = p.fx === CHAOS_KINDS.indexOf('tether') + 1;
+    const partner = tether ? this.players[p.fxP] : undefined;
+    if (p.fxT > 0 && !(tether && (!partner || !partner.active || partner.life !== 'alive'))) return;
+    p.fx = 0;
+    p.fxT = 0;
+    p.fxP = -1;
+    p.fxImm = CHAOS.immunity;
+    this.emit({ k: 'chaos', t: 'end', by: -1, to: p.slot });
+  }
+
+  /** The user grabbed a chaos pickup: pick a safe teammate and an effect, or fizzle harmlessly. */
+  private fireChaos(user: PlayerState): void {
+    const fizzle = () => this.emit({ k: 'chaos', t: 'fizzle', by: user.slot, to: -1 });
+    if (!this.chaosOn()) return fizzle();
+    const r = this.chaosRng;
+    const kind = r.weighted(CHAOS.weights) as ChaosKind | undefined;
+    const targets = this.players.filter(
+      (t) => t.active && t.life === 'alive' && t.slot !== user.slot && t.invuln <= 0 && t.fx === 0 && t.fxImm <= 0 && this.bodySafe(t.x),
+    );
+    if (!kind || targets.length === 0) return fizzle();
+    const target = targets[Math.floor(r.next() * targets.length)];
+    if (kind === 'swap') {
+      if (!this.bodySafe(user.x)) return fizzle();
+      [user.x, target.x] = [target.x, user.x];
+      user.invuln = Math.max(user.invuln, CHAOS.swapGrace);
+      target.invuln = Math.max(target.invuln, CHAOS.swapGrace);
+      target.fxImm = CHAOS.immunity;
+    } else {
+      if (kind === 'tether' && user.fx !== 0) return fizzle();
+      const idx = CHAOS_KINDS.indexOf(kind) + 1;
+      const secs = CHAOS.seconds[kind];
+      target.fx = idx;
+      target.fxT = secs;
+      if (kind === 'tether') {
+        target.fxP = user.slot;
+        user.fx = idx;
+        user.fxT = secs;
+        user.fxP = target.slot;
+      }
+    }
+    this.emit({ k: 'chaos', t: kind, by: user.slot, to: target.slot });
   }
 
   private stepBombs(dt: number, platforms: readonly { x: number; y: number; w: number; h: number }[]): void {
@@ -620,6 +702,9 @@ export class GameSimulation {
     p.speed = 0;
     p.dbl = 0;
     p.anc = 0;
+    p.fx = 0;
+    p.fxT = 0;
+    p.fxP = -1;
     if (p.lives > 0) {
       p.life = 'dead';
       p.respawnTimer = PLAYER.respawnDelay;
@@ -657,7 +742,7 @@ export class GameSimulation {
 
     const pu = this.level.powerUps;
     if (this.powerups.length < POWERUP.maxOnField && this.rng.next() < pu.dropChance * this.scale.dropMul) {
-      const type = this.rng.weighted(pu.pool);
+      const type = this.rng.weighted(this.chaosOn() ? { ...pu.pool, chaos: CHAOS.dropWeight * this.scale.chaosRate } : pu.pool);
       if (type) this.spawnPowerUp(type, b.x, b.y);
     }
   }
@@ -696,6 +781,9 @@ export class GameSimulation {
         break;
       case 'anchor':
         p.anc = ANCHOR.chargeSeconds;
+        break;
+      case 'chaos':
+        this.fireChaos(p);
         break;
     }
   }

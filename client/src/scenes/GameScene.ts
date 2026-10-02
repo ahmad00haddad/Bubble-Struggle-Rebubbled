@@ -32,6 +32,7 @@ const PU_LABEL: Record<PowerUpType, string> = {
   doubleHarpoon: 'DOUBLE TETHER!',
   speedBoost: 'SPEED UP!',
   anchor: 'ANCHOR TETHER!',
+  chaos: 'CHAOS!',
 };
 
 export class GameScene extends Phaser.Scene {

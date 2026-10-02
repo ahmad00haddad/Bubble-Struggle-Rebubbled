@@ -8,6 +8,8 @@ export interface MatchOptions {
   activeSlots: boolean[];
   seed: number;
   startLevel?: number;
+  /** Chaos pickups allowed (host setting). */
+  chaos?: boolean;
 }
 
 export type PauseReason = 'player' | 'disconnect';
@@ -32,7 +34,7 @@ export class Match {
   private events: TickedEvent[] = [];
 
   constructor(opts: MatchOptions) {
-    this.sim = new GameSimulation({ levels: opts.levels, activeSlots: opts.activeSlots, seed: opts.seed });
+    this.sim = new GameSimulation({ levels: opts.levels, activeSlots: opts.activeSlots, seed: opts.seed, chaos: opts.chaos });
     if (opts.startLevel) this.sim.loadLevel(Math.min(opts.startLevel, opts.levels.length - 1));
     this.setPhase('countdown', MATCH.countdownSeconds);
   }

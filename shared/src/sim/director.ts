@@ -25,6 +25,7 @@ export function planSky(level: LevelConfig, scale: ScaleProfile, rng: Rng): SkyP
   if (!cfg) return [];
   const chance = Math.min(0.95, (cfg.chance ?? SKY.slotChance) * (1 + SKY.playerBonus * (scale.players - 1)));
   const pool = { ...(cfg.pool ?? SKY.defaultPool) };
+  const first = SKY.firstAfter * (SKY.firstAfterScale[scale.players - 1] ?? 1);
   const limit = level.timeLimit * scale.timeMul * SKY.clockGuard;
   const plan: SkyPlanEntry[] = [];
   for (let i = 0; i < cfg.budget; i++) {
@@ -32,7 +33,7 @@ export function planSky(level: LevelConfig, scale: ScaleProfile, rng: Rng): SkyP
     const spread = rng.next();
     const kind = rng.weighted(pool);
     if (roll >= chance || !kind) continue;
-    const seconds = SKY.firstAfter + i * SKY.gap + spread * SKY.jitter;
+    const seconds = first + i * SKY.gap + spread * SKY.jitter;
     if (seconds < limit) plan.push({ at: Math.round(seconds * TICK_RATE), kind });
   }
   return plan.sort((a, b) => a.at - b.at);

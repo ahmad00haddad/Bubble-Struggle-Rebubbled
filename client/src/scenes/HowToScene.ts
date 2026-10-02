@@ -14,6 +14,7 @@ const PU_TEXT: Record<PowerUpType, string> = {
   doubleHarpoon: 'Double Tether — two shots at once',
   speedBoost: 'Speed Boost — run faster',
   anchor: 'Anchor Tether — next shot sticks to the ceiling for 4 s',
+  chaos: 'Chaos — a short prank on a teammate (multiplayer only)',
 };
 
 export class HowToScene extends Phaser.Scene {

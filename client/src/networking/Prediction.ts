@@ -1,4 +1,4 @@
-import { NET, TICK_MS, movePlayerX, type NetPlayer } from '@orb/shared';
+import { NET, TICK_MS, movePlayerFx, type MoveFx, type NetPlayer } from '@orb/shared';
 
 interface InputRecord {
   seq: number;
@@ -52,14 +52,14 @@ export class Prediction {
    * @param running server world is advancing (phase 'playing')
    * @param canMove local Lancer is alive
    */
-  update(dtMs: number, running: boolean, canMove: boolean, speedMul: number): void {
+  update(dtMs: number, running: boolean, canMove: boolean, speedMul: number, fx?: MoveFx): void {
     this.acc += dtMs;
     let steps = 0;
     while (this.acc >= TICK_MS && steps < 8) {
       this.acc -= TICK_MS;
       steps++;
       if (!running) continue;
-      if (canMove && this.hasX) this.x = movePlayerX(this.x, this.bitsAt(this.tick), speedMul);
+      if (canMove && this.hasX) this.x = movePlayerFx(this.x, this.bitsAt(this.tick), speedMul, fx);
       this.tick++;
     }
     if (steps === 8) this.acc = 0;
@@ -67,7 +67,7 @@ export class Prediction {
     if (Math.abs(this.smooth) < 0.05) this.smooth = 0;
   }
 
-  reconcile(sp: NetPlayer, running: boolean, speedMul: number): void {
+  reconcile(sp: NetPlayer, running: boolean, speedMul: number, fx?: MoveFx): void {
     if (!this.hasX || !running || sp.life !== 'alive' || !sp.active) {
       this.x = sp.x;
       this.hasX = true;
@@ -88,7 +88,7 @@ export class Prediction {
     base = Math.min(base, this.tick);
 
     let nx = sp.x;
-    for (let t = base; t < this.tick; t++) nx = movePlayerX(nx, this.bitsAt(t), speedMul);
+    for (let t = base; t < this.tick; t++) nx = movePlayerFx(nx, this.bitsAt(t), speedMul, fx);
 
     const err = this.x + this.smooth - nx;
     this.smooth = Math.abs(err) > NET.snapDistance ? 0 : err;

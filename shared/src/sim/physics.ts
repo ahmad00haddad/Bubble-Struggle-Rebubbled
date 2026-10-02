@@ -1,4 +1,4 @@
-import { BUBBLE_SIZES, HARPOON, INPUT, PHYSICS, PLAYER, POWERUP, TICK_DT, WORLD, bounceVelocity } from '../constants/game';
+import { BUBBLE_SIZES, CHAOS, CHAOS_KINDS, HARPOON, INPUT, PHYSICS, PLAYER, POWERUP, TICK_DT, WORLD, bounceVelocity } from '../constants/game';
 import type { Rect } from '../types/level';
 import type { BubbleState, PowerUpState } from '../types/state';
 
@@ -18,6 +18,32 @@ export function movePlayerX(x: number, input: number, speedMul: number, dt = TIC
   if (dir === 0) return x;
   const half = PLAYER.width / 2;
   return clamp(x + dir * PLAYER.speed * speedMul * dt, half, WORLD.width - half);
+}
+
+/** What a chaos effect does to movement. Shared by the simulation and client prediction. */
+export interface MoveFx {
+  flip?: boolean;
+  slow?: boolean;
+  /** Tether partner's x, when tethered. */
+  tetherX?: number | null;
+}
+
+/** Movement effect for a chaos effect index (0 = none) and the tether partner's x. */
+export function moveFxOf(fx: number, partnerX: number | null): MoveFx {
+  const kind = fx > 0 ? CHAOS_KINDS[fx - 1] : null;
+  return { flip: kind === 'flip', slow: kind === 'slow', tetherX: kind === 'tether' ? partnerX : null };
+}
+
+/** movePlayerX plus chaos effects: reversed keys, slowed legs, a tether to a teammate. */
+export function movePlayerFx(x: number, input: number, speedMul: number, fx: MoveFx | undefined, dt = TICK_DT): number {
+  if (!fx || (!fx.flip && !fx.slow && fx.tetherX == null)) return movePlayerX(x, input, speedMul, dt);
+  let bits = input;
+  if (fx.flip) bits = (input & ~(INPUT.LEFT | INPUT.RIGHT)) | (input & INPUT.LEFT ? INPUT.RIGHT : 0) | (input & INPUT.RIGHT ? INPUT.LEFT : 0);
+  const nx = movePlayerX(x, bits, fx.slow ? speedMul * CHAOS.slowMul : speedMul, dt);
+  if (fx.tetherX == null) return nx;
+  const range = CHAOS.tetherRange;
+  if (Math.abs(x - fx.tetherX) > range) return Math.abs(nx - fx.tetherX) < Math.abs(x - fx.tetherX) ? nx : x; // already stretched: only moves toward the partner
+  return clamp(nx, fx.tetherX - range, fx.tetherX + range);
 }
 
 export function playerHitbox(x: number): Rect {

@@ -1,5 +1,6 @@
 import { POWERUP_TYPES, SKY_KINDS, SPECIAL_KINDS, type SkyKind, type BubbleSize, type PowerUpType, type SpecialKind } from '../constants/game';
 import type { Match } from '../sim/Match';
+import { moveFxOf, type MoveFx } from '../sim/physics';
 import type { BubbleState } from '../types/state';
 import { MATCH_PHASES, type LifeState, type MatchPhase, type TickedEvent } from '../types/state';
 import type { SnapMessage } from './messages';
@@ -25,6 +26,10 @@ export interface NetPlayer {
   dbl: number;
   /** Seconds the Anchor pickup stays loaded. */
   anchor: number;
+  /** Chaos effect (0 none, else CHAOS_KINDS index + 1), seconds left, tether partner slot (-1 none). */
+  fx: number;
+  fxT: number;
+  fxP: number;
   lastSeq: number;
   ticksSince: number;
   facing: -1 | 1;
@@ -145,6 +150,9 @@ export function encodeSnapshot(match: Match, events: TickedEvent[]): SnapMessage
       p.ticksSinceSeq,
       p.facing,
       t10(p.anc),
+      p.fx,
+      t10(p.fxT),
+      p.fxP + 1,
     ]),
     b: sim.bubbles.map(encodeBubble),
     h: sim.harpoons.map((h) => (h.anchor ? [h.id, h.owner, r1(h.x), r1(h.tipY), 1, t10(h.ttl ?? 0)] : [h.id, h.owner, r1(h.x), r1(h.tipY)])),
@@ -180,6 +188,9 @@ export function decodeSnapshot(m: SnapMessage): Snapshot {
       ticksSince: a[10],
       facing: a[11] < 0 ? -1 : 1,
       anchor: (a[12] ?? 0) / 10,
+      fx: a[13] ?? 0,
+      fxT: (a[14] ?? 0) / 10,
+      fxP: (a[15] ?? 0) - 1,
     })),
     bubbles: m.b.map(decodeBubble),
     harpoons: m.h.map((a) => (a.length > 4 ? { id: a[0], owner: a[1], x: a[2], tipY: a[3], anchor: true, ttl: a[5] / 10 } : { id: a[0], owner: a[1], x: a[2], tipY: a[3] })),
@@ -189,6 +200,13 @@ export function decodeSnapshot(m: SnapMessage): Snapshot {
     heat: (m.hl ?? 0) / 100,
     events: m.e ?? [],
   };
+}
+
+/** Movement effect on `slot` from a decoded snapshot (for client prediction). */
+export function moveFxFromPlayers(players: readonly NetPlayer[], slot: number): MoveFx {
+  const me = players[slot];
+  if (!me || me.fx === 0) return {};
+  return moveFxOf(me.fx, me.fxP >= 0 ? (players[me.fxP]?.x ?? null) : null);
 }
 
 /** Build the same decoded view directly from a local match (solo mode). */
@@ -213,6 +231,9 @@ export function snapshotFromMatch(match: Match, events: TickedEvent[] = []): Sna
       speed: p.speed,
       dbl: p.dbl,
       anchor: p.anc,
+      fx: p.fx,
+      fxT: p.fxT,
+      fxP: p.fxP,
       lastSeq: p.lastSeq,
       ticksSince: p.ticksSinceSeq,
       facing: p.facing,

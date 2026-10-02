@@ -1,4 +1,4 @@
-import type { BubbleSize, PowerUpType, SkyKind, SpecialEventType, SpecialKind } from '../constants/game';
+import type { BubbleSize, ChaosKind, PowerUpType, SkyKind, SpecialEventType, SpecialKind } from '../constants/game';
 
 export type LifeState = 'alive' | 'dead' | 'out';
 
@@ -25,6 +25,14 @@ export interface PlayerState {
   hitThisLevel: boolean;
   /** Seconds the Anchor pickup stays loaded (0 = none). The next shot becomes an anchor. */
   anc: number;
+  /** Chaos effect on this Lancer: 0 = none, else CHAOS_KINDS index + 1. */
+  fx: number;
+  /** Seconds the effect has left. */
+  fxT: number;
+  /** Seconds of immunity to new effects (counts down while no effect is active). */
+  fxImm: number;
+  /** Tether: slot of the linked Lancer, else -1. */
+  fxP: number;
   /** Reconciliation bookkeeping. */
   lastSeq: number;
   ticksSinceSeq: number;
@@ -122,6 +130,7 @@ export type SimEvent =
   | { k: 'sp'; t: SpecialEventType; id: number; x: number; y: number }
   | { k: 'anchor'; p: number; x: number; y: number }
   | { k: 'heat'; on: boolean }
+  | { k: 'chaos'; t: ChaosKind | 'fizzle' | 'end'; by: number; to: number }
   | { k: 'sky'; t: 'warn' | 'start' | 'end'; kind: SkyKind; x?: number }
   | { k: 'phase'; ph: MatchPhase };
 

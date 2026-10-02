@@ -90,7 +90,7 @@ export const SCORING = {
 } as const;
 
 /** Order is part of the snapshot format: append only. */
-export const POWERUP_TYPES = ['shield', 'extraLife', 'extraTime', 'doubleHarpoon', 'speedBoost', 'anchor'] as const;
+export const POWERUP_TYPES = ['shield', 'extraLife', 'extraTime', 'doubleHarpoon', 'speedBoost', 'anchor', 'chaos'] as const;
 export type PowerUpType = (typeof POWERUP_TYPES)[number];
 
 export const POWERUP = {
@@ -196,6 +196,8 @@ export const SKY = {
   seedSalt: 0x1b873593,
   /** Earliest an event may start, spacing between planned slots, and random spread on top. Seconds. */
   firstAfter: 8,
+  /** Bigger teams clear faster, so their first slot comes sooner (index = players - 1). */
+  firstAfterScale: [1, 0.85, 0.7, 0.55],
   gap: 14,
   jitter: 10,
   /** No event is planned in the last quarter of the clock. */
@@ -230,6 +232,33 @@ export const HEAT = {
   /** Speed factor and duration for children spawned while hot. */
   boostMul: 1.12,
   boostSeconds: 4,
+} as const;
+
+/**
+ * Chaos: a rare multiplayer-only pickup. Whoever grabs it fires one short, playful effect at a
+ * teammate the server picks. Kind order is part of the snapshot format (stored as index + 1).
+ */
+export const CHAOS_KINDS = ['jam', 'flip', 'slow', 'tether', 'swap'] as const;
+export type ChaosKind = (typeof CHAOS_KINDS)[number];
+
+export const CHAOS = {
+  seedSalt: 0x27d4eb2f,
+  /** Effect length in seconds. Swap is instant. */
+  seconds: { jam: 1.2, flip: 0.8, slow: 2.5, tether: 3 },
+  /** Slow: movement factor. */
+  slowMul: 0.6,
+  /** Tether: the linked Lancers cannot get further apart than this (px). */
+  tetherRange: 280,
+  /** Seconds a target is immune after an effect ends (and right after a swap). */
+  immunity: 6,
+  /** Invulnerability both Lancers get after a swap. */
+  swapGrace: 0.8,
+  /** No effect if an orb is closer than this (px, from the target's body) to a Lancer it would hit. */
+  dangerRadius: 150,
+  /** Relative odds when an effect fires. */
+  weights: { jam: 3, flip: 2, slow: 3, tether: 2, swap: 1 },
+  /** Weight of the chaos pickup in drop pools and gift crates (multiplied by ScaleProfile.chaosRate). */
+  dropWeight: 1,
 } as const;
 
 export const MATCH = {

@@ -49,6 +49,8 @@ export interface RoomMeta {
   createdAt: number;
   everJoined: boolean;
   seats: (SeatMeta | null)[];
+  /** Room option, host-controlled in the lobby. Absent means on. */
+  chaos?: boolean;
   /** Set when the room has expired; the record is kept briefly as a tombstone. */
   expiredAt?: number;
 }
@@ -326,6 +328,14 @@ export class RoomCore {
         this.broadcastRoom();
         return;
       }
+      case 'chaos': {
+        // Host only, and only before a match starts.
+        if (m || slot !== this.hostSlot() || !this.meta) return;
+        this.meta.chaos = msg.v;
+        this.persist();
+        this.broadcastRoom();
+        return;
+      }
       case 'pause': {
         if (m && m.sim.players[slot]?.active && m.pause('player', slot)) {
           this.flushPhase();
@@ -397,7 +407,7 @@ export class RoomCore {
   private startMatch(): void {
     if (!this.meta) return;
     const active = this.seats.map((s) => !!s && !!s.conn);
-    this.match = new Match({ levels: this.levels, activeSlots: active, seed: Math.floor(this.host.random() * 2 ** 32) });
+    this.match = new Match({ levels: this.levels, activeSlots: active, seed: Math.floor(this.host.random() * 2 ** 32), chaos: this.meta.chaos !== false });
     this.sentLevelVersion = -1;
     this.pendingEvents = [];
     this.ticksSinceSnap = 0;
@@ -588,6 +598,8 @@ export class RoomCore {
       code: this.meta?.code ?? '',
       phase: this.computePhase(),
       inMatch: !!m,
+      host: this.hostSlot(),
+      chaos: this.meta?.chaos !== false,
       seats: this.seats.map((s, i) =>
         s
           ? {
@@ -607,6 +619,11 @@ export class RoomCore {
       info.grace = { slot: gone, msLeft: Math.max(0, s.disconnectedAt! + ROOM.disconnectGraceSeconds * 1000 - now) };
     }
     return info;
+  }
+
+  /** The host is the lowest seated slot (the room creator unless they left). */
+  private hostSlot(): number {
+    return this.seats.findIndex((s) => !!s);
   }
 
   private computePhase(): RoomPhase {

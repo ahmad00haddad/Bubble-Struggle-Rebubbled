@@ -9,6 +9,7 @@ import type { TickedEvent } from '../types/state';
 export type ClientMessage =
   | { t: 'in'; s: number; b: number }
   | { t: 'ready'; v: boolean }
+  | { t: 'chaos'; v: boolean }
   | { t: 'pause' }
   | { t: 'resume' }
   | { t: 'rematch' }
@@ -41,6 +42,9 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case 'ready':
       if (typeof o.v !== 'boolean') return null;
       return { t: 'ready', v: o.v };
+    case 'chaos':
+      if (typeof o.v !== 'boolean') return null;
+      return { t: 'chaos', v: o.v };
     case 'ping':
       if (typeof o.c !== 'number' || !Number.isFinite(o.c)) return null;
       return { t: 'ping', c: o.c };
@@ -116,6 +120,10 @@ export interface RoomInfo {
   phase: RoomPhase;
   inMatch: boolean;
   seats: (SeatInfo | null)[];
+  /** Slot of the room host (lowest seated slot). Only the host can change room options. */
+  host: number;
+  /** Chaos pickups on (multiplayer only). */
+  chaos: boolean;
   pause?: { by: number; reason: 'player' | 'disconnect' };
   /** A disconnected partner's reconnect window. */
   grace?: { slot: number; msLeft: number };
@@ -134,7 +142,7 @@ export interface SnapMessage {
   li: number;
   /** Ticks since the level started (drives timed platforms on clients). */
   lt: number;
-  /** [slot, x, life, lives, score, flags, shield10, speed10, dbl10, lastSeq, ticksSince, facing, anchor10] */
+  /** [slot, x, life, lives, score, flags, shield10, speed10, dbl10, lastSeq, ticksSince, facing, anchor10, fx, fxT10, fxPartner+1] */
   p: number[][];
   /** [id, size, x, y, vx, vy, flags(bit0 fast, bit1 rage)] + [specialKind, sa10, linkOrGroup, hitMask, seqPlace] for special orbs only */
   b: number[][];
