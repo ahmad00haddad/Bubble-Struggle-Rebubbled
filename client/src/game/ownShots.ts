@@ -12,6 +12,13 @@ export interface ShotView {
   bm?: 0 | 1;
 }
 
+/** A plain upward tether advanced by the time since its snapshot arrived. */
+export function advanceShot<T extends { tipY: number; anchor?: boolean; bm?: 0 | 1 }>(h: T, elapsedSec: number): T {
+  // Anchors and boomerangs are drawn as received; only a plain rising tether can be advanced safely.
+  if (h.anchor || h.bm !== undefined) return h;
+  return { ...h, tipY: Math.max(0, h.tipY - HARPOON.speed * Math.max(0, elapsedSec)) };
+}
+
 /** A predicted tether is dropped after this long: it has flown to the ceiling by then. */
 const LIFETIME_MS = 620;
 /** Presses closer together than this are ignored (the server has a 0.18 s cooldown). */
@@ -63,12 +70,7 @@ export class OwnShots {
     this.expire(nowMs);
     const out: ShotView[] = [];
     const elapsed = Math.max(0, nowMs - arrivedMs) / 1000;
-    for (const h of latest) {
-      if (h.owner !== this.slot) continue;
-      // Only a plain upward tether can be advanced safely; anchors and boomerangs are drawn as received.
-      const flying = !h.anchor && h.bm === undefined;
-      out.push({ ...h, tipY: flying ? Math.max(0, h.tipY - HARPOON.speed * elapsed) : h.tipY });
-    }
+    for (const h of latest) if (h.owner === this.slot) out.push(advanceShot(h, elapsed));
     this.pending.forEach((p, i) => {
       out.push({ id: -1 - i, owner: this.slot, x: p.x, tipY: Math.max(0, WORLD.height - PLAYER.height - HARPOON.speed * ((nowMs - p.t0) / 1000)) });
     });

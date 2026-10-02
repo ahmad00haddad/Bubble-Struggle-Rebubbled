@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { RoomInfo } from '@orb/shared';
 import { LANCER_FRAMES, TEXTURES, TEX_SCALE } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
+import { LanCoordinator } from '../lan/LanCoordinator';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
 import { getSettings } from '../config/settings';
 import type { NetSession } from '../networking/NetSession';
@@ -18,6 +19,9 @@ export class LobbyScene extends Phaser.Scene {
   private net!: Phaser.GameObjects.Text;
   private startBtn!: Button;
   private chaosBtn!: Button;
+  private lanBtn: Button | null = null;
+  private lan: LanCoordinator | null = null;
+  private noteUntil = 0;
   private leaving = false;
 
   constructor() {
@@ -57,11 +61,17 @@ export class LobbyScene extends Phaser.Scene {
     }
 
     this.status = this.add.text(cx, 366, '', TEXT.body(19)).setOrigin(0.5);
-    this.chaosBtn = new Button(this, cx, 406, 'CHAOS: ON', () => this.toggleChaos(), { width: 320, fontSize: 10 });
+    const canLan = !session.peer && LanCoordinator.supported;
+    this.chaosBtn = new Button(this, canLan ? cx - 165 : cx, 406, 'CHAOS: ON', () => this.toggleChaos(), { width: canLan ? 310 : 320, fontSize: canLan ? 9 : 10 });
+    if (canLan) {
+      this.lanBtn = new Button(this, cx + 165, 406, 'LAN MATCH (P2P)', () => void this.lan?.startAsHost(), { width: 310, fontSize: 9 });
+      this.lan = new LanCoordinator(session, session.nickname, { status: (t, bad) => this.note(t, bad), adopt: (s) => this.adoptLan(s) });
+    }
     this.startBtn = new Button(this, cx, 456, 'START', () => this.toggleReady(), { primary: true, width: 320 });
-    const copyLink = new Button(this, cx - 130, 514, 'COPY INVITE LINK', () => this.copy(this.inviteLink(), 'Invite link copied!'), { width: 250, fontSize: 11 });
-    const leave = new Button(this, cx + 130, 514, 'LEAVE ROOM', () => this.leave(), { width: 250, fontSize: 11 });
-    new ButtonGroup(this, [this.startBtn, this.chaosBtn, copyLink, leave], { onBack: () => this.leave() }).focus(0);
+    const copyLink = session.peer ? null : new Button(this, cx - 130, 514, 'COPY INVITE LINK', () => this.copy(this.inviteLink(), 'Invite link copied!'), { width: 250, fontSize: 11 });
+    const leave = new Button(this, session.peer ? cx : cx + 130, 514, 'LEAVE ROOM', () => this.leave(), { width: session.peer ? 320 : 250, fontSize: 11 });
+    const group = [this.startBtn, this.chaosBtn, ...(this.lanBtn ? [this.lanBtn] : []), ...(copyLink ? [copyLink] : []), leave];
+    new ButtonGroup(this, group, { onBack: () => this.leave() }).focus(0);
     this.net = this.add.text(VIEW.width - 12, VIEW.height - 10, '', TEXT.body(14, COLORS.textDim)).setOrigin(1, 1);
 
     session.on('room', this.refresh, this);
@@ -69,6 +79,7 @@ export class LobbyScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       session.off('room', this.refresh, this);
       session.off('error', this.onError, this);
+      this.lan?.dispose();
     });
     if (session.room) this.refresh(session.room);
     if (session.error) this.onError(session.error);
@@ -107,9 +118,15 @@ export class LobbyScene extends Phaser.Scene {
     const isHost = room.host === me;
     this.chaosBtn.setText(`CHAOS PICKUPS: ${room.chaos ? 'ON' : 'OFF'}${isHost ? '' : ' (HOST ONLY)'}`);
     this.chaosBtn.setEnabled(isHost);
+    if (this.lanBtn) {
+      const friends = room.seats.some((st, i) => !!st && st.connected && i !== me);
+      this.lanBtn.setText(isHost ? 'LAN MATCH (P2P)' : 'LAN MATCH (HOST ONLY)');
+      this.lanBtn.setEnabled(isHost && friends && !this.lan?.isBusy);
+    }
     const mine = room.seats[me];
     const others = room.seats.filter((st, i) => st && i !== me);
     this.startBtn.setText(mine?.ready ? 'READY ✓ (CANCEL)' : 'START');
+    if (performance.now() < this.noteUntil) return;
     const waiting = others.filter((st) => st && !st.ready).map((st) => st!.name);
     if (others.length === 0) this.status.setText('Waiting for at least one more player (up to 4)…').setColor(COLORS.text);
     else if (others.some((st) => !st!.connected)) this.status.setText('A player disconnected — waiting for them…').setColor(COLORS.bad);
@@ -121,6 +138,25 @@ export class LobbyScene extends Phaser.Scene {
 
   private cardPos(i: number): { x: number; y: number } {
     return { x: VIEW.width / 2 + (i % 2 === 0 ? -165 : 165), y: 236 + Math.floor(i / 2) * 82 };
+  }
+
+  /** A message about LAN linking, shown in place of the usual status for a few seconds. */
+  private note(text: string, bad = false): void {
+    this.noteUntil = performance.now() + 9000;
+    this.status.setText(text).setColor(bad ? COLORS.bad : COLORS.accentCss);
+    this.time.delayedCall(9100, () => this.scene.isActive() && this.session.room && this.refresh(this.session.room));
+    if (this.session.room && this.lanBtn) this.lanBtn.setEnabled(!this.lan?.isBusy && this.session.room.host === this.session.slot);
+  }
+
+  /** The room is now run by a player's tab (LAN mode): switch to it and leave the online one. */
+  private adoptLan(s: NetSession): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    const cloud = this.session;
+    this.registry.set(REGISTRY.session, s);
+    s.connect();
+    cloud.leave();
+    goTo(this, SCENES.lobby);
   }
 
   private toggleChaos(): void {

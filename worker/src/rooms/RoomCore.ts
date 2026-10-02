@@ -328,6 +328,12 @@ export class RoomCore {
         this.broadcastRoom();
         return;
       }
+      case 'rtc': {
+        // LAN mode signaling: hand the text to the other seat, untouched.
+        const target = this.seats[msg.to];
+        if (msg.to !== slot && target?.conn) this.sendTo(target.conn, { t: 'rtc', from: slot, d: msg.d });
+        return;
+      }
       case 'chaos': {
         // Host only, and only before a match starts.
         if (m || slot !== this.hostSlot() || !this.meta) return;

@@ -40,6 +40,11 @@ export class SnapshotBuffer {
     else this.offset += (sample - this.offset) * 0.03; // late packet: drift slowly
   }
 
+  /** Best guess of the server's current tick (no interpolation delay): where orbs can be drawn. */
+  serverTick(nowMs: number): number {
+    return this.offset === null ? (this.latest?.tick ?? 0) : nowMs / TICK_MS + this.offset;
+  }
+
   renderTick(nowMs: number): number {
     if (this.offset === null) return 0;
     return nowMs / TICK_MS + this.offset - NET.interpDelayMs / TICK_MS;

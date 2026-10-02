@@ -1,6 +1,8 @@
 import { FATAL_CLOSE_CODES, NET, type ErrorCode, type ServerMessage } from '@orb/shared';
 
-export type NetStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
+import type { Link, NetStatus } from './Link';
+
+export type { NetStatus } from './Link';
 
 const FATAL_ERRORS: ErrorCode[] = ['ROOM_FULL', 'ROOM_NOT_FOUND', 'ROOM_EXPIRED', 'REPLACED', 'BAD_REQUEST'];
 
@@ -9,7 +11,7 @@ const FATAL_ERRORS: ErrorCode[] = ['ROOM_FULL', 'ROOM_NOT_FOUND', 'ROOM_EXPIRED'
  * measurement and fatal-error detection. Never polls: pings are tiny "ping"
  * text frames the Durable Object runtime answers without waking the room.
  */
-export class NetClient {
+export class NetClient implements Link {
   status: NetStatus = 'connecting';
   rttMs = 0;
   closeCode = 0;

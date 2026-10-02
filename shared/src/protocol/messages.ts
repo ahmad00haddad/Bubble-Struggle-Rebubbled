@@ -10,6 +10,7 @@ export type ClientMessage =
   | { t: 'in'; s: number; b: number }
   | { t: 'ready'; v: boolean }
   | { t: 'chaos'; v: boolean }
+  | { t: 'rtc'; to: number; d: string }
   | { t: 'pause' }
   | { t: 'resume' }
   | { t: 'rematch' }
@@ -45,6 +46,11 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case 'chaos':
       if (typeof o.v !== 'boolean') return null;
       return { t: 'chaos', v: o.v };
+    case 'rtc':
+      // Signaling for LAN mode: the room only passes this text to another seat, it never reads it.
+      if (!Number.isInteger(o.to) || (o.to as number) < 0 || (o.to as number) >= ROOM.maxPlayers) return null;
+      if (typeof o.d !== 'string' || o.d.length === 0 || o.d.length > 3600) return null;
+      return { t: 'rtc', to: o.to as number, d: o.d };
     case 'ping':
       if (typeof o.c !== 'number' || !Number.isFinite(o.c)) return null;
       return { t: 'ping', c: o.c };
@@ -165,6 +171,7 @@ export type ServerMessage =
   | { t: 'welcome'; slot: number; token: string; code: string }
   | ({ t: 'room' } & RoomInfo)
   | { t: 'level'; i: number; n: number; cfg: LevelConfig }
+  | { t: 'rtc'; from: number; d: string }
   | SnapMessage
   | { t: 'pong'; c: number; s: number }
   | { t: 'error'; code: ErrorCode; msg: string };

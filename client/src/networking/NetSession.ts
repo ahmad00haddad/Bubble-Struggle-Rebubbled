@@ -9,7 +9,8 @@ import {
   type ServerMessage,
 } from '@orb/shared';
 import { wsUrl } from '../config/clientConfig';
-import { NetClient, type NetStatus } from './NetClient';
+import type { Link, NetStatus } from './Link';
+import { NetClient } from './NetClient';
 import { Prediction } from './Prediction';
 import { SnapshotBuffer } from './SnapshotBuffer';
 
@@ -42,26 +43,34 @@ export class NetSession extends Phaser.Events.EventEmitter {
   error: { code: ErrorCode | 'UNREACHABLE'; msg: string } | null = null;
   readonly buffer = new SnapshotBuffer();
   readonly prediction = new Prediction();
-  private client: NetClient;
+  private client: Link;
+  /** LAN mode: this session talks to a room run by one of the players, not to the online server. */
+  readonly peer: boolean;
+  private autoReady: boolean;
   private token: string | null;
   private left = false;
 
   constructor(
     readonly code: string,
     readonly nickname: string,
+    opts: { link?: Link; peer?: boolean; autoReady?: boolean } = {},
   ) {
     super();
-    this.token = sessionStorage.getItem(tokenKey(code));
-    this.client = new NetClient(() => {
-      const q = new URLSearchParams({ name: this.nickname });
-      if (this.token) q.set('token', this.token);
-      return wsUrl(`/api/rooms/${code}/ws?${q}`);
-    });
+    this.peer = !!opts.peer;
+    this.autoReady = !!opts.autoReady;
+    this.token = this.peer ? null : sessionStorage.getItem(tokenKey(code));
+    this.client =
+      opts.link ??
+      new NetClient(() => {
+        const q = new URLSearchParams({ name: this.nickname });
+        if (this.token) q.set('token', this.token);
+        return wsUrl(`/api/rooms/${code}/ws?${q}`);
+      });
     this.client.onMessage = (m) => this.handle(m);
     this.client.onStatus = (s) => {
       if (s === 'reconnecting') this.prediction.reset();
       if (s === 'closed' && !this.error && !this.left) {
-        this.error = { code: 'UNREACHABLE', msg: 'Lost connection to the game server.' };
+        this.error = { code: 'UNREACHABLE', msg: this.peer ? 'Lost connection to the host of the match.' : 'Lost connection to the game server.' };
         this.emit('error', this.error);
       }
       this.emit('status', s);
@@ -90,6 +99,10 @@ export class NetSession extends Phaser.Events.EventEmitter {
   /** Host only: switch chaos pickups on or off before the match starts. */
   setChaos(v: boolean): void {
     this.client.send({ t: 'chaos', v });
+  }
+  /** LAN mode: pass connection details to another player through the online room. */
+  sendRtc(to: number, d: string): void {
+    this.client.send({ t: 'rtc', to, d });
   }
   setReady(v: boolean): void {
     this.client.send({ t: 'ready', v });
@@ -126,11 +139,17 @@ export class NetSession extends Phaser.Events.EventEmitter {
     switch (m.t) {
       case 'welcome':
         this.slot = m.slot;
-        this.token = m.token;
-        sessionStorage.setItem(tokenKey(this.code), m.token);
-        setRoomParam(this.code);
         this.prediction.reset();
+        if (!this.peer) {
+          this.token = m.token;
+          sessionStorage.setItem(tokenKey(this.code), m.token);
+          setRoomParam(this.code);
+        }
         this.emit('welcome', m);
+        if (this.autoReady) this.setReady(true);
+        break;
+      case 'rtc':
+        this.emit('rtc', m.from, m.d);
         break;
       case 'room':
         this.room = m;

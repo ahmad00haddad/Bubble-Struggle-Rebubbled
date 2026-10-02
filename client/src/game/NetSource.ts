@@ -1,7 +1,7 @@
 import { INPUT, moveFxFromPlayers, speedMulOf, CHAOS_KINDS, type TickedEvent } from '@orb/shared';
 import type { NetSession } from '../networking/NetSession';
-import { buildView } from './interpolate';
-import { OwnShots } from './ownShots';
+import { MAX_ORB_EXTRAPOLATE_TICKS, buildView } from './interpolate';
+import { OwnShots, advanceShot } from './ownShots';
 import type { GameSource, ViewState } from './types';
 
 /**
@@ -69,7 +69,12 @@ export class NetSource implements GameSource {
     const s = this.session;
     const f = s.buffer.frame(this.rt);
     if (!f) return null;
-    const v = buildView(f.a, f.b, this.rt, s.level);
+    // Orbs follow fixed physics, so they are drawn from the newest snapshot (about one trip behind the
+    // server) instead of the delayed pair other players are interpolated from.
+    const newest = s.buffer.latest;
+    const nowMs = performance.now();
+    const orbs = newest ? { snap: newest, ticks: Math.min(MAX_ORB_EXTRAPOLATE_TICKS, Math.max(0, s.buffer.serverTick(nowMs) - newest.tick)) } : undefined;
+    const v = buildView(f.a, f.b, this.rt, s.level, orbs);
     const me = v.players[s.slot];
     if (me && me.active && me.life === 'alive') me.x = s.prediction.displayX;
     // HUD values (lives/score/timer) from the newest snapshot feel snappier.
@@ -84,12 +89,18 @@ export class NetSource implements GameSource {
         }
       }
     }
-    if (latest) v.harpoons = [...v.harpoons.filter((h) => h.owner !== s.slot), ...this.shots.visible(latest.harpoons, s.buffer.latestAt, performance.now())];
+    if (latest) {
+      // Tethers go with the orbs: everyone's from the newest snapshot, ours with an instant guess on top.
+      const elapsed = Math.max(0, nowMs - s.buffer.latestAt) / 1000;
+      const others = latest.harpoons.filter((h) => h.owner !== s.slot).map((h) => advanceShot(h, elapsed));
+      v.harpoons = [...others, ...this.shots.visible(latest.harpoons, s.buffer.latestAt, nowMs)];
+    }
     return v;
   }
 
   drainEvents(): TickedEvent[] {
-    return this.session.buffer.takeEvents(this.rt);
+    // Events go with the orbs they describe (pops, splits), so they play as soon as they arrive.
+    return this.session.buffer.takeEvents(Infinity);
   }
 
   requestPause(): void {

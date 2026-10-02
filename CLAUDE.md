@@ -23,7 +23,7 @@ Original online co-op arcade game (bubble-popping genre, no copyrighted names/ar
 - Lovable (or any other agent) should only touch the website shell, never `shared/`, `worker/` or game logic. It once pushed levels directly into `shared/src/levels/levels.ts`; always `git pull` before editing.
 
 ## Commands
-- `npm install`, `npm test` (396 unit tests), `npm run typecheck`
+- `npm install`, `npm test` (410 unit tests), `npm run typecheck`
 - `npm run dev` (worker :8787 + client :5173), `npm run test:e2e` (needs worker running; `SERVER=<url>` to test production)
 - `npm run deploy` (builds client + deploys Worker/DO/assets)
 - Windows: wrangler dev fails with `SQLITE_CANTOPEN` if the project path is long; clone to a short path such as `C:\dev\orb-lancers`, or use `--persist-to C:\tmp\orb-state`.
@@ -37,6 +37,8 @@ Original online co-op arcade game (bubble-popping genre, no copyrighted names/ar
 - Latency (v1.3): snapshots run at 30 Hz with a 70 ms interpolation delay. New rooms use a Durable Object location hint (`DO_LOCATION_HINT` in wrangler.jsonc, currently "me"); about 60% of rooms land near Amman (1-10 ms), the rest 58+ ms. Measured: "eeur" and no hint were both worse. `npm run rtt` measures it.
 - Same-network play: `npm run lan` builds the client and runs the game server on this PC at 0.0.0.0:8787; friends on the same Wi-Fi open the printed http://<ip>:8787 (ping 1-5 ms instead of ~60 to Cloudflare). Own tether is drawn instantly on fire (`client/src/game/ownShots.ts`, cosmetic only; the server still decides).
 - Client performance rule: never call Phaser Text style setters (`setColor`, `setAlign`, `setShadow`...) every frame. Each call re-draws the text canvas and re-uploads its texture, and per-player labels multiplied that cost. Use `setLabel` from `client/src/ui/text.ts`. Particle bursts reuse pooled emitters in `GameScene`.
+- LAN mode (v1.5, lobby button "LAN MATCH (P2P)", host only): the host's browser runs the same `RoomCore` (`client/src/lan/LanHost.ts`) and friends connect over WebRTC data channels (`links.ts`); the online room only relays the connection details (`rtc` message, `LanCoordinator.ts`). Same rules and protocol, but the host tab is the server (keep it visible), so this mode is host-authoritative, unlike online rooms. If linking fails nothing changes and normal START still works.
+- Rendering (v1.5): online orbs and tethers are drawn from the newest snapshot advanced with the shared physics (no interpolation delay); remote players stay interpolated. Events play on arrival. Own tether starts instantly (`ownShots.ts`).
 - Balance harness: `npm run balance -- --seeds 20 --levels 1-10 [--n 1,2,3,4] [--demo]` plays levels with scripted bots against the real sim and prints clear time, deaths, special/sky/heat counters. Measurements only, it never judges balance. Bots ignore pickups.
 - New mechanics: add a `SpecialDef` in `shared/src/sim/specials/` and append its kind to `SPECIAL_KINDS` (append only: kind order is in the snapshot format; same for `POWERUP_TYPES`, `SKY_KINDS`, `CHAOS_KINDS`). Specials and sky/chaos use their own seeded RNG streams so drops and bombs stay deterministic.
 - Ideas not built yet: more hazard types (e.g. moving platforms, bomb defusing), mobile portrait layout, accounts/leaderboards.

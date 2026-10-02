@@ -6,7 +6,7 @@
 export const GAME_NAME = 'ORB LANCERS';
 
 /** Shown on the main menu. Bump it with every change that gets deployed (see CLAUDE.md). */
-export const GAME_VERSION = '1.4';
+export const GAME_VERSION = '1.5';
 
 /** Fixed simulation rate (server and solo). */
 export const TICK_RATE = 30;
@@ -376,7 +376,8 @@ export const ROOM = {
   unjoinedRoomTtlSeconds: 15 * 60,
   maxRoomLifetimeSeconds: 3 * 3600,
   tombstoneTtlSeconds: 24 * 3600,
-  maxMessageBytes: 1024,
+  /** Large enough for a WebRTC session description sent through the room (LAN mode). */
+  maxMessageBytes: 4096,
   /** Sustained per-socket message budget; bursts above are dropped. */
   maxMessagesPerSecond: 40,
   /** Hard kill threshold within one second. */
