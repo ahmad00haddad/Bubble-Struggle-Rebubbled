@@ -14,6 +14,7 @@
     "typecheck": "tsc -p shared --noEmit && tsc -p worker --noEmit && tsc -p client --noEmit && tsc -p tests --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "balance": "node scripts/balance.mjs",
     "test:e2e": "node tests/e2e/multiplayer.e2e.mjs",
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types worker/worker-configuration.d.ts"

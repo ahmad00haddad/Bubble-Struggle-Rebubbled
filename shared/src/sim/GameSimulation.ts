@@ -1,17 +1,22 @@
 import {
   BUBBLE_SIZES,
   HAZARDS,
+  HEAT,
   HARPOON,
   INPUT,
+  ANCHOR,
   PHYSICS,
   PLAYER,
   POWERUP,
   SCORING,
+  SKY,
+  SPECIAL,
   TICK_DT,
   TICK_RATE,
   WORLD,
   type BubbleSize,
   type PowerUpType,
+  type SkyKind,
 } from '../constants/game';
 import type { LevelConfig } from '../types/level';
 import type {
@@ -22,10 +27,14 @@ import type {
   PowerUpState,
   SimEvent,
   SimStatus,
+  SkyState,
 } from '../types/state';
-import { advanceBubble, advanceHarpoon, advancePowerUp, circleRectOverlap, harpoonRect, movePlayerX, playerHitbox } from './physics';
+import { advanceBubble, advanceHarpoon, advancePowerUp, anchorStickY, circleRectOverlap, harpoonRect, movePlayerX, playerHitbox } from './physics';
 import { Rng } from './rng';
 import { activePlatforms, onSpikes, orbSpeedMul, spawnX } from './hazards';
+import { scaleProfile, type ScaleProfile } from './scaling';
+import { planSky, type SkyPlanEntry } from './director';
+import { SPECIAL_DEFS, isIntangible, passesHarpoon, type SpecialHost } from './specials';
 
 export interface SimOptions {
   levels: readonly LevelConfig[];
@@ -52,6 +61,7 @@ function newPlayer(slot: number, active: boolean): PlayerState {
     dbl: 0,
     cooldown: 0,
     hitThisLevel: false,
+    anc: 0,
     lastSeq: 0,
     ticksSinceSeq: 0,
   };
@@ -68,6 +78,8 @@ export class GameSimulation {
   tick = 0;
   levelIndex = 0;
   level!: LevelConfig;
+  /** Player-count scaling, fixed for the whole level (set in loadLevel). */
+  scale: ScaleProfile = scaleProfile(1);
   levelTicks = 0;
   timeLeftTicks = 0;
   status: SimStatus = 'running';
@@ -76,6 +88,17 @@ export class GameSimulation {
   harpoons: HarpoonState[] = [];
   powerups: PowerUpState[] = [];
   bombs: BombState[] = [];
+  /** Reseeded on every level load from (seed, level), so a retry replays identical special state. */
+  private specialRng: Rng;
+  private readonly seed: number;
+  private readonly specialHost: SpecialHost;
+  /** The one sky event in progress (warning or lasting effect), if any. */
+  sky: SkyState | null = null;
+  private skyPlan: SkyPlanEntry[] = [];
+  /** Rapid-popping meter (pops, decaying) and whether the governor is currently on. */
+  heat = 0;
+  hot = false;
+  private skyRng: Rng;
   private nextBombAt = Infinity;
   private nextId = 1;
   private placedSpawned = new Set<number>();
@@ -85,12 +108,44 @@ export class GameSimulation {
     if (opts.levels.length === 0) throw new Error('No levels');
     this.levels = opts.levels;
     this.rng = new Rng(opts.seed);
+    this.seed = opts.seed >>> 0;
+    this.specialRng = new Rng(this.seed ^ SPECIAL.seedSalt);
+    this.skyRng = new Rng(this.seed ^ SKY.seedSalt);
+    const self = this;
+    this.specialHost = {
+      get rng() {
+        return self.specialRng;
+      },
+      get scale() {
+        return self.scale;
+      },
+      activePlayers: () => this.players.reduce((n, p) => n + (p.active && p.life !== 'out' ? 1 : 0), 0),
+      orbs: () => this.bubbles,
+      bubbleById: (id) => this.bubbles.find((b) => b.id === id),
+      popGroup: (ids, owner) => {
+        for (const id of ids) {
+          const i = this.bubbles.findIndex((b) => b.id === id);
+          if (i >= 0) this.popBubble(i, owner);
+        }
+      },
+      emit: (t, b) => this.emit({ k: 'sp', t, id: b.id, x: Math.round(b.x), y: Math.round(b.y) }),
+    };
     this.players = opts.activeSlots.map((a, i) => newPlayer(i, a));
     this.loadLevel(0);
   }
 
   get speedMul(): number {
-    return this.level.difficulty.bubbleSpeed;
+    return this.level.difficulty.bubbleSpeed * this.scale.speedMul;
+  }
+
+  /** Heat as a share of this level's trigger threshold (1 = governor starts). */
+  get heatRatio(): number {
+    return this.heat / this.scale.heatThreshold;
+  }
+
+  /** Orb gravity factor: Gravity Wobble lightens it while active. */
+  get gravMul(): number {
+    return this.sky?.kind === 'wobble' && this.sky.phase === 'active' ? SKY.wobbleGravity : 1;
   }
 
   get isLastLevel(): boolean {
@@ -102,7 +157,8 @@ export class GameSimulation {
     this.levelIndex = index;
     this.level = this.levels[index];
     this.levelTicks = 0;
-    this.timeLeftTicks = Math.round(this.level.timeLimit * TICK_RATE);
+    this.scale = scaleProfile(this.players.filter((p) => p.active).length);
+    this.timeLeftTicks = Math.round(this.level.timeLimit * this.scale.timeMul * TICK_RATE);
     this.status = 'running';
     this.harpoons = [];
     this.powerups = [];
@@ -120,6 +176,12 @@ export class GameSimulation {
       ...(s.fast ? { fast: true } : {}),
     }));
     for (const b of this.bubbles) if (b.fast) b.vx *= HAZARDS.fastOrbMultiplier;
+    this.initSpecials();
+    this.heat = 0;
+    this.hot = false;
+    this.sky = null;
+    this.skyRng = new Rng((this.seed ^ SKY.seedSalt ^ Math.imul(this.levelIndex + 1, 0x85ebca6b)) >>> 0);
+    this.skyPlan = planSky(this.level, this.scale, this.skyRng);
     for (const p of this.players) {
       p.x = spawnX(this.level, p.slot);
       p.facing = 1;
@@ -129,9 +191,36 @@ export class GameSimulation {
       p.speed = 0;
       p.dbl = 0;
       p.cooldown = 0;
+      p.anc = 0;
       p.hitThisLevel = false;
       if (p.active && p.life === 'dead') p.life = p.lives > 0 ? 'alive' : 'out';
     }
+  }
+
+  /** Tag special orbs from the level data, run their init, and link Twin Fuse pairs. */
+  private initSpecials(): void {
+    this.specialRng = new Rng((this.seed ^ SPECIAL.seedSalt ^ Math.imul(this.levelIndex + 1, 0x9e3779b1)) >>> 0);
+    const pairs = new Map<number, BubbleState>();
+    this.level.bubbles.forEach((s, i) => {
+      if (!s.special) return;
+      const b = this.bubbles[i];
+      b.sp = s.special;
+      SPECIAL_DEFS[s.special].init?.(this.specialHost, b, s);
+      if (s.special === 'twin' && s.group !== undefined) {
+        const other = pairs.get(s.group);
+        if (other) {
+          other.lk = b.id;
+          b.lk = other.id;
+        } else pairs.set(s.group, b);
+      }
+    });
+  }
+
+  /** A harpoon connected with a tangible orb. The harpoon is spent either way. */
+  private hitBubble(index: number, owner: number, x: number): void {
+    const b = this.bubbles[index];
+    if (b.sp && SPECIAL_DEFS[b.sp].onHit?.(this.specialHost, b, { owner, x }) === 'absorb') return;
+    this.popBubble(index, owner);
   }
 
   /** Give knocked-out players a fresh start (used between levels in co-op). */
@@ -226,33 +315,68 @@ export class GameSimulation {
       p.speed = Math.max(0, p.speed - dt);
       p.dbl = Math.max(0, p.dbl - dt);
       p.cooldown = Math.max(0, p.cooldown - dt);
+      p.anc = Math.max(0, p.anc - dt);
 
       if (p.shootLatch) {
         p.shootLatch = false;
         const max = p.dbl > 0 ? HARPOON.doubleMax : HARPOON.baseMax;
-        const mine = this.harpoons.reduce((n, h) => n + (h.owner === p.slot ? 1 : 0), 0);
+        // A stuck anchor tether does not use up the owner's harpoon slot.
+        const mine = this.harpoons.reduce((n, h) => n + (h.owner === p.slot && h.ttl === undefined ? 1 : 0), 0);
         if (p.cooldown <= 0 && mine < max) {
           p.cooldown = HARPOON.cooldown;
-          this.harpoons.push({ id: this.nextId++, owner: p.slot, x: p.x, tipY: WORLD.height - PLAYER.height });
+          const anchor = p.anc > 0 && !this.level.noAnchor;
+          if (anchor) p.anc = 0;
+          this.harpoons.push({ id: this.nextId++, owner: p.slot, x: p.x, tipY: WORLD.height - PLAYER.height, ...(anchor ? { anchor: true } : {}) });
           this.emit({ k: 'shoot', p: p.slot, x: Math.round(p.x) });
         }
       }
     }
 
     // --- Orbs --------------------------------------------------------------
-    for (const b of this.bubbles) advanceBubble(b, dt, platforms, orbSpeedMul(this.level, b.fast));
+    for (const b of this.bubbles) advanceBubble(b, dt, platforms, orbSpeedMul(this.level, b.fast, this.scale.speedMul, b.rage, b.hot), this.gravMul);
+    this.stepHeat(dt);
+    // Specials mutate only their own orb's fields here, never the array.
+    for (const b of this.bubbles) if (b.sp) SPECIAL_DEFS[b.sp].onTick?.(this.specialHost, b, dt);
 
     // --- Harpoons: travel, then hit test along the whole tether -----------
     const survivors: HarpoonState[] = [];
     for (const h of this.harpoons) {
-      const tip = advanceHarpoon(h.x, h.tipY, dt, platforms);
-      if (tip === null) continue;
-      h.tipY = tip;
-      const rect = harpoonRect(h.x, h.tipY);
-      const idx = this.bubbles.findIndex((b) => circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius, rect));
-      if (idx >= 0) {
-        this.popBubble(idx, h.owner);
+      if (h.ttl === undefined) {
+        const tip = advanceHarpoon(h.x, h.tipY, dt, platforms);
+        if (tip === null) {
+          if (!h.anchor) continue;
+          // Anchor: stick where the tether stopped and keep working for a few seconds.
+          h.tipY = anchorStickY(h.x, h.tipY, platforms);
+          h.ttl = ANCHOR.stickSeconds;
+          h.cd = 0;
+          this.emit({ k: 'anchor', p: h.owner, x: Math.round(h.x), y: Math.round(h.tipY) });
+        } else h.tipY = tip;
+      } else {
+        h.ttl -= dt;
+        if (h.ttl <= 0) continue;
+      }
+      // Anchors are not spent by a hit (in flight or stuck); a short cooldown paces their pops.
+      if (h.anchor && (h.cd ?? 0) > 0) {
+        h.cd = (h.cd ?? 0) - dt;
+        survivors.push(h);
         continue;
+      }
+      const rect = harpoonRect(h.x, h.tipY);
+      const idx = this.bubbles.findIndex((b) => !passesHarpoon(b) && circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius, rect));
+      if (idx >= 0) {
+        this.hitBubble(idx, h.owner, h.x);
+        if (h.anchor) {
+          h.cd = ANCHOR.hitCooldown;
+          survivors.push(h);
+        }
+        continue;
+      }
+      if (!h.passed) {
+        const ghost = this.bubbles.find((b) => b.sp && isIntangible(b) && circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius, rect));
+        if (ghost) {
+          h.passed = true;
+          this.specialHost.emit('miss', ghost);
+        }
       }
       survivors.push(h);
     }
@@ -262,7 +386,7 @@ export class GameSimulation {
     for (const p of this.players) {
       if (!p.active || p.life !== 'alive' || p.invuln > 0) continue;
       const box = playerHitbox(p.x);
-      const hit = this.bubbles.some((b) => circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius - 1, box));
+      const hit = this.bubbles.some((b) => !isIntangible(b) && circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius - 1, box));
       if (hit || onSpikes(this.level, p.x)) this.damagePlayer(p);
     }
 
@@ -303,6 +427,10 @@ export class GameSimulation {
     }
     this.powerups = keep;
 
+    // --- Sky events ----------------------------------------------------------
+    this.stepSky(dt);
+    this.updateHot();
+
     // --- Level resolution --------------------------------------------------
     const anyActive = this.players.some((p) => p.active);
     if (anyActive && this.players.every((p) => !p.active || p.life === 'out')) {
@@ -326,6 +454,103 @@ export class GameSimulation {
       this.timeLeftTicks = 0;
       this.status = 'timeup';
       this.emit({ k: 'timeup' });
+    }
+  }
+
+  /** Orb spawned mid-level by an event (same speed rules as level-load orbs). */
+  private spawnOrb(size: BubbleSize, x: number, y: number, dir: number, vy: number, fast: boolean): void {
+    const m = this.speedMul;
+    const f = fast ? HAZARDS.fastOrbMultiplier : 1;
+    this.bubbles.push({ id: this.nextId++, size, x, y, vx: dir * BUBBLE_SIZES[size].speedX * m * f, vy: vy * m * f, ...(fast ? { fast: true } : {}) });
+  }
+
+  private stepSky(dt: number): void {
+    const sky = this.sky;
+    if (!sky) {
+      const next = this.skyPlan[0];
+      if (!next || this.levelTicks < next.at) return;
+      this.skyPlan.shift();
+      this.startSkyWarning(next.kind);
+      return;
+    }
+    sky.t -= dt;
+    if (sky.t > 0) return;
+    if (sky.phase === 'active') {
+      this.emit({ k: 'sky', t: 'end', kind: sky.kind });
+      this.sky = null;
+      return;
+    }
+    this.landSky(sky);
+  }
+
+  private startSkyWarning(kind: SkyKind): void {
+    const r = this.skyRng;
+    const sky: SkyState = { kind, phase: 'warn', t: SKY.warn[kind], a: 0, lanes: [] };
+    if (kind === 'gift') sky.a = Math.round(60 + r.next() * (WORLD.width - 120));
+    else if (kind === 'comet') sky.a = r.next() < 0.5 ? -1 : 1;
+    else if (kind === 'hail') {
+      let x = 80 + r.next() * 220;
+      for (let i = 0; i < SKY.hailCount; i++) {
+        sky.lanes.push(Math.round(Math.min(x, WORLD.width - 60)));
+        x += SKY.hailGap + r.next() * 120;
+      }
+    }
+    this.sky = sky;
+    this.emit({ k: 'sky', t: 'warn', kind, ...(kind === 'gift' ? { x: sky.a } : {}) });
+  }
+
+  /** The warning ran out: the event lands. One-shot events finish here; Wobble starts its lasting phase. */
+  private landSky(sky: SkyState): void {
+    const r = this.skyRng;
+    this.emit({ k: 'sky', t: 'start', kind: sky.kind, ...(sky.kind === 'gift' ? { x: sky.a } : {}) });
+    switch (sky.kind) {
+      case 'gift': {
+        const pool: Partial<Record<PowerUpType, number>> = { ...SKY.giftPool };
+        if (this.level.noAnchor) delete pool.anchor;
+        const type = r.weighted(pool);
+        if (type) this.spawnPowerUp(type, sky.a, POWERUP.size / 2 + 2);
+        break;
+      }
+      case 'comet': {
+        const fromLeft = sky.a > 0;
+        this.spawnOrb(1, fromLeft ? 24 : WORLD.width - 24, 60, fromLeft ? 1 : -1, 0, true);
+        break;
+      }
+      case 'hail':
+        for (const x of sky.lanes) this.spawnOrb(0, x, 24, r.next() < 0.5 ? -1 : 1, 180, false);
+        break;
+      case 'wobble':
+        sky.phase = 'active';
+        sky.t = SKY.wobbleSeconds;
+        return;
+    }
+    this.emit({ k: 'sky', t: 'end', kind: sky.kind });
+    this.sky = null;
+  }
+
+  /** Decay the heat meter, expire boosts, and flip the governor on/off with hysteresis. */
+  private stepHeat(dt: number): void {
+    this.heat *= Math.exp(-dt / HEAT.decaySeconds);
+    for (const b of this.bubbles) {
+      if (b.ht === undefined) continue;
+      b.ht -= dt;
+      if (b.ht > 0) continue;
+      // Boost over: back to the orb's normal speed with the same arc shape.
+      b.vx /= HEAT.boostMul;
+      b.vy /= HEAT.boostMul;
+      delete b.hot;
+      delete b.ht;
+    }
+  }
+
+  private updateHot(): void {
+    const thr = this.scale.heatThreshold;
+    if (!this.hot && this.heat >= thr) {
+      this.hot = true;
+      this.emit({ k: 'heat', on: true });
+    } else if (this.hot && this.heat < thr * HEAT.coolRatio) {
+      this.hot = false;
+      this.emit({ k: 'heat', on: false });
     }
   }
 
@@ -394,6 +619,7 @@ export class GameSimulation {
     p.shootLatch = false;
     p.speed = 0;
     p.dbl = 0;
+    p.anc = 0;
     if (p.lives > 0) {
       p.life = 'dead';
       p.respawnTimer = PLAYER.respawnDelay;
@@ -406,6 +632,8 @@ export class GameSimulation {
 
   private popBubble(index: number, by: number): void {
     const b = this.bubbles[index];
+    if (b.sp) SPECIAL_DEFS[b.sp].onPop?.(this.specialHost, b);
+    this.heat += 1;
     const pts = BUBBLE_SIZES[b.size].points;
     const scorer = this.players[by];
     if (scorer) scorer.score += pts;
@@ -418,14 +646,17 @@ export class GameSimulation {
       const vx = BUBBLE_SIZES[child].speedX * m;
       const vy = -PHYSICS.splitKickVy * m;
       const f = b.fast ? HAZARDS.fastOrbMultiplier : 1;
+      // While the team runs hot, new children start a little faster for a few seconds.
+      const h = this.hot ? HEAT.boostMul : 1;
+      const heated = this.hot ? { hot: true, ht: HEAT.boostSeconds } : {};
       this.bubbles.push(
-        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: -vx * f, vy: vy * f, ...(b.fast ? { fast: true } : {}) },
-        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: vx * f, vy: vy * f, ...(b.fast ? { fast: true } : {}) },
+        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: -vx * f * h, vy: vy * f * h, ...(b.fast ? { fast: true } : {}), ...heated },
+        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: vx * f * h, vy: vy * f * h, ...(b.fast ? { fast: true } : {}), ...heated },
       );
     }
 
     const pu = this.level.powerUps;
-    if (this.powerups.length < POWERUP.maxOnField && this.rng.next() < pu.dropChance) {
+    if (this.powerups.length < POWERUP.maxOnField && this.rng.next() < pu.dropChance * this.scale.dropMul) {
       const type = this.rng.weighted(pu.pool);
       if (type) this.spawnPowerUp(type, b.x, b.y);
     }
@@ -462,6 +693,9 @@ export class GameSimulation {
         break;
       case 'speedBoost':
         p.speed = POWERUP.durations.speedBoost;
+        break;
+      case 'anchor':
+        p.anc = ANCHOR.chargeSeconds;
         break;
     }
   }

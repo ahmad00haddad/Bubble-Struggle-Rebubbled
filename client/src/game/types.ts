@@ -1,4 +1,4 @@
-import type { BubbleSize, LevelConfig, LifeState, MatchPhase, PowerUpType, TickedEvent } from '@orb/shared';
+import type { BubbleSize, LevelConfig, LifeState, MatchPhase, PowerUpType, SpecialKind, TickedEvent } from '@orb/shared';
 
 export interface ViewPlayer {
   slot: number;
@@ -21,7 +21,7 @@ export interface ViewState {
   levelIndex: number;
   players: ViewPlayer[];
   levelTicks: number;
-  bubbles: { id: number; size: BubbleSize; x: number; y: number; fast?: boolean }[];
+  bubbles: { id: number; size: BubbleSize; x: number; y: number; fast?: boolean; rage?: boolean; hot?: boolean; sp?: SpecialKind; sa?: number; lk?: number; hm?: number; n?: number }[];
   bombs: { id: number; x: number; y: number; fuse: number }[];
   harpoons: { id: number; owner: number; x: number; tipY: number }[];
   powerups: { id: number; type: PowerUpType; x: number; y: number; life: number }[];

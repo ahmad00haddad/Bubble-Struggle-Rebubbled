@@ -134,16 +134,20 @@ export interface SnapMessage {
   li: number;
   /** Ticks since the level started (drives timed platforms on clients). */
   lt: number;
-  /** [slot, x, life, lives, score, flags, shield10, speed10, dbl10, lastSeq, ticksSince, facing] */
+  /** [slot, x, life, lives, score, flags, shield10, speed10, dbl10, lastSeq, ticksSince, facing, anchor10] */
   p: number[][];
-  /** [id, size, x, y, vx, vy, fast(0|1)] */
+  /** [id, size, x, y, vx, vy, flags(bit0 fast, bit1 rage)] + [specialKind, sa10, linkOrGroup, hitMask, seqPlace] for special orbs only */
   b: number[][];
-  /** [id, owner, x, tipY] */
+  /** [id, owner, x, tipY] plus [1, ttl10] for anchor harpoons */
   h: number[][];
   /** [id, typeIndex, x, y, life10] */
   u: number[][];
   /** Bombs: [id, x, y, fuse10] (omitted when none) */
   x?: number[][];
+  /** Sky event: [kindIndex, phase(0 warn|1 active), t10, a, ...lanes] (omitted when none) */
+  s?: number[];
+  /** Heat as a percentage of the governor threshold (omitted when cold) */
+  hl?: number;
   e?: TickedEvent[];
 }
 

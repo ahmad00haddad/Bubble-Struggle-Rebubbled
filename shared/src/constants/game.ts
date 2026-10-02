@@ -72,6 +72,16 @@ export const HARPOON = {
   doubleMax: 2,
 } as const;
 
+/** Anchor harpoon: a rare pickup. The next shot sticks to the ceiling and keeps popping what touches it. */
+export const ANCHOR = {
+  /** Seconds the pickup stays loaded before it is lost. */
+  chargeSeconds: 15,
+  /** Seconds the tether stays stuck once it reaches the ceiling. */
+  stickSeconds: 4,
+  /** Seconds between pops by one stuck tether (stops it deleting a crowd in one tick). */
+  hitCooldown: 0.35,
+} as const;
+
 export const SCORING = {
   pickup: 50,
   levelClear: 1000,
@@ -79,7 +89,8 @@ export const SCORING = {
   survivalBonus: 500,
 } as const;
 
-export const POWERUP_TYPES = ['shield', 'extraLife', 'extraTime', 'doubleHarpoon', 'speedBoost'] as const;
+/** Order is part of the snapshot format: append only. */
+export const POWERUP_TYPES = ['shield', 'extraLife', 'extraTime', 'doubleHarpoon', 'speedBoost', 'anchor'] as const;
 export type PowerUpType = (typeof POWERUP_TYPES)[number];
 
 export const POWERUP = {
@@ -105,6 +116,120 @@ export const HAZARDS = {
   bombSize: 22,
   /** Toggling platforms warn (blink) this many seconds before vanishing. */
   platformWarnSeconds: 1,
+} as const;
+
+/** Special bubbles. Kind order is part of the snapshot format: append only, never reorder. */
+export const SPECIAL_KINDS = ['hardshell', 'ghost', 'twin', 'sync', 'pincer', 'heavy', 'sequence'] as const;
+export type SpecialKind = (typeof SPECIAL_KINDS)[number];
+
+/** Discrete things a special reports to clients (FX, audio, balance counters). */
+export const SPECIAL_EVENTS = [
+  'enrage',
+  'warn',
+  'fade',
+  'solid',
+  'fuseStart',
+  'fuseSave',
+  'fuseFail',
+  'miss',
+  'syncArm',
+  'syncDone',
+  'syncFail',
+  'pincerArm',
+  'pincerDone',
+  'pincerFail',
+  'heavyHit',
+  'heavyDone',
+  'heavyFail',
+  'seqStep',
+  'seqReset',
+  'seqDone',
+  /** A hit that made no progress (same shooter / same side again). */
+  'deny',
+] as const;
+export type SpecialEventType = (typeof SPECIAL_EVENTS)[number];
+
+export const SPECIAL = {
+  /** Mixed into the match seed so specials never consume the power-up / bomb RNG stream. */
+  seedSalt: 0x5bd1e995,
+  hardshell: {
+    /** Speed multiplier after the first hit (same physics shape as a fast orb). */
+    rageMul: 1.25,
+  },
+  ghost: {
+    /** Seconds fully solid, then seconds of blinking warning (still hittable), then seconds intangible. */
+    solid: 3,
+    warn: 0.8,
+    ghostly: 1.5,
+  },
+  twin: {
+    /** Seconds to pop the partner after the first twin falls. Solo gets longer. */
+    fuseSeconds: 5,
+    fuseSecondsSolo: 7,
+  },
+  sync: {
+    /** Seconds between the two hits. With one living Lancer the same player may land both. */
+    window: 1.2,
+    windowSolo: 2,
+  },
+  pincer: {
+    /** Seconds between a left-side and a right-side hit (sides are relative to the orb). */
+    window: 1.5,
+    windowSolo: 3,
+    /** Multiplayer: a hit must land at least this many px off the orb's centre line to count as a side. */
+    deadband: 6,
+  },
+  heavy: {
+    /** Seconds, counted from the first hit, to gather the required distinct shooters. */
+    window: 2.5,
+    /** Never fewer than this many distinct shooters while two or more Lancers can still play. */
+    minShooters: 2,
+  },
+} as const;
+
+/** Rare, telegraphed events that fall out of the sky. Kind order is part of the snapshot format: append only. */
+export const SKY_KINDS = ['gift', 'comet', 'wobble', 'hail'] as const;
+export type SkyKind = (typeof SKY_KINDS)[number];
+
+export const SKY = {
+  /** Mixed into the match seed so the director never consumes any other RNG stream. */
+  seedSalt: 0x1b873593,
+  /** Earliest an event may start, spacing between planned slots, and random spread on top. Seconds. */
+  firstAfter: 8,
+  gap: 14,
+  jitter: 10,
+  /** No event is planned in the last quarter of the clock. */
+  clockGuard: 0.75,
+  /** Chance a planned slot actually happens, and the bonus per extra Lancer. */
+  slotChance: 0.6,
+  playerBonus: 0.15,
+  /** Warning shown before the effect lands. Seconds. */
+  warn: { gift: 1.5, comet: 1.5, wobble: 2, hail: 1.5 },
+  /** Gravity Wobble: how long, and the orb gravity factor while it lasts. */
+  wobbleSeconds: 6,
+  wobbleGravity: 0.7,
+  /** Hail: orbs dropped, minimum spacing between lanes (px). */
+  hailCount: 3,
+  hailGap: 180,
+  /** Gift Crate contents. Anchor is dropped from the pool on noAnchor levels. */
+  giftPool: { shield: 3, doubleHarpoon: 3, speedBoost: 3, extraTime: 2, extraLife: 1, anchor: 1 },
+  /** Relative odds of each event when a level does not set its own pool. */
+  defaultPool: { gift: 4, comet: 3, wobble: 2, hail: 3 },
+} as const;
+
+/**
+ * Heat governor: measures rapid popping and, while the team runs hot, makes newly split
+ * orbs slightly faster for a few seconds. It never touches players. The trigger level
+ * differs per player count (ScaleProfile.heatThreshold).
+ */
+export const HEAT = {
+  /** Heat decays with this time constant (s); one pop adds 1 heat. */
+  decaySeconds: 3,
+  /** Hot ends when heat falls below this share of the threshold (hysteresis). */
+  coolRatio: 0.6,
+  /** Speed factor and duration for children spawned while hot. */
+  boostMul: 1.12,
+  boostSeconds: 4,
 } as const;
 
 export const MATCH = {

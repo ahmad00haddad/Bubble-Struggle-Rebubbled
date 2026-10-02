@@ -1,4 +1,4 @@
-import { HAZARDS, PLAYER, TICK_RATE, WORLD } from '../constants/game';
+import { HAZARDS, HEAT, PLAYER, SPECIAL, TICK_RATE, WORLD } from '../constants/game';
 import type { LevelConfig, PlatformConfig, Rect } from '../types/level';
 
 /**
@@ -45,8 +45,8 @@ export function activePlatforms(level: LevelConfig, levelTicks: number): Rect[] 
 }
 
 /** Speed multiplier for one orb (level difficulty × fast-orb bonus). */
-export function orbSpeedMul(level: LevelConfig, fast: boolean | undefined): number {
-  return level.difficulty.bubbleSpeed * (fast ? HAZARDS.fastOrbMultiplier : 1);
+export function orbSpeedMul(level: LevelConfig, fast: boolean | undefined, scaleSpeed = 1, rage = false, hot = false): number {
+  return level.difficulty.bubbleSpeed * scaleSpeed * (fast ? HAZARDS.fastOrbMultiplier : 1) * (rage ? SPECIAL.hardshell.rageMul : 1) * (hot ? HEAT.boostMul : 1);
 }
 
 /** Does a Lancer at x stand on a spike strip? */

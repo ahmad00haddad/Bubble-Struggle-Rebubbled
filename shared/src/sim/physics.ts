@@ -75,9 +75,9 @@ function collideBubblePlatform(b: BubbleState, p: Rect, speedMul: number): void 
   }
 }
 
-function integrateBubble(b: BubbleState, dt: number, platforms: readonly Rect[], speedMul: number): void {
+function integrateBubble(b: BubbleState, dt: number, platforms: readonly Rect[], speedMul: number, gravMul: number): void {
   const r = BUBBLE_SIZES[b.size].radius;
-  b.vy += PHYSICS.gravity * speedMul * speedMul * dt;
+  b.vy += PHYSICS.gravity * speedMul * speedMul * gravMul * dt;
   b.x += b.vx * dt;
   b.y += b.vy * dt;
 
@@ -102,12 +102,12 @@ function integrateBubble(b: BubbleState, dt: number, platforms: readonly Rect[],
  * Advance an orb by `dt` seconds (any dt; the client uses fractional ticks for
  * rendering). Internally substeps at a fixed maximum step for consistency.
  */
-export function advanceBubble(b: BubbleState, dt: number, platforms: readonly Rect[], speedMul: number): void {
+export function advanceBubble(b: BubbleState, dt: number, platforms: readonly Rect[], speedMul: number, gravMul = 1): void {
   const maxStep = TICK_DT / PHYSICS.substeps;
   let remaining = dt;
   while (remaining > 1e-9) {
     const step = Math.min(maxStep, remaining);
-    integrateBubble(b, step, platforms, speedMul);
+    integrateBubble(b, step, platforms, speedMul, gravMul);
     remaining -= step;
   }
 }
@@ -145,4 +145,19 @@ export function advanceHarpoon(x: number, tipY: number, dt: number, platforms: r
     if (tipY > p.y && tipY < bottom) return null;
   }
   return newTip <= 0 ? null : newTip;
+}
+
+/**
+ * Where an anchor harpoon sticks when its tether stops: the ceiling (0), or the underside of
+ * the platform it ran into. Call with the tip position from before the blocked move.
+ */
+export function anchorStickY(x: number, tipY: number, platforms: readonly Rect[]): number {
+  const hw = HARPOON.width / 2;
+  let y = 0;
+  for (const p of platforms) {
+    if (x + hw <= p.x || x - hw >= p.x + p.w) continue;
+    const bottom = p.y + p.h;
+    if (bottom <= tipY + 1e-6 && bottom > y) y = bottom;
+  }
+  return y;
 }

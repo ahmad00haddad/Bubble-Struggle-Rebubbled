@@ -1,4 +1,4 @@
-import type { BubbleSize, PowerUpType } from '../constants/game';
+import type { BubbleSize, PowerUpType, SkyKind, SpecialKind } from '../constants/game';
 
 export interface Rect {
   x: number;
@@ -17,6 +17,14 @@ export interface BubbleSpawn {
   velocityY?: number;
   /** Fast orb: moves/bounces HAZARDS.fastOrbMultiplier faster. Children stay fast. */
   fast?: boolean;
+  /** Special bubble kind (see SPECIAL_KINDS). Ordinary orb when absent. */
+  special?: SpecialKind;
+  /** Twin Fuse: the two spawns sharing a group number are partners. Sequence: all spawns of a group form one set. */
+  group?: number;
+  /** Sequence: place in the order, 1-based and contiguous within the group. */
+  order?: number;
+  /** Ghost: seconds into its cycle at level start. Drawn from the special RNG when omitted. */
+  phase?: number;
 }
 
 /** A platform. With `cycle` it appears/disappears on a timer (a "door"). */
@@ -63,6 +71,16 @@ export interface LevelTheme {
   orb: number;
 }
 
+/** Surprise Director settings. A level without `sky` has no sky events. */
+export interface SkyConfig {
+  /** Slots planned for this level (each happens with probability `chance`). */
+  budget: number;
+  /** Per-slot chance; defaults to SKY.slotChance. */
+  chance?: number;
+  /** Relative odds by event; defaults to SKY.defaultPool. */
+  pool?: Partial<Record<SkyKind, number>>;
+}
+
 export interface LevelConfig {
   id: string;
   name: string;
@@ -76,5 +94,9 @@ export interface LevelConfig {
   bubbles: BubbleSpawn[];
   powerUps: LevelPowerUps;
   difficulty: { rating: number; bubbleSpeed: number };
+  /** Rare sky events (Gift Crate, Comet, Gravity Wobble, Hail). */
+  sky?: SkyConfig;
+  /** Anchor harpoons behave like normal shots here and the pickup never appears (boss levels). */
+  noAnchor?: boolean;
   theme: LevelTheme;
 }

@@ -162,6 +162,7 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
     extraTime: 0xffc145,
     doubleHarpoon: 0xb388ff,
     speedBoost: 0x5cf2a0,
+    anchor: 0xff9f43,
   };
   const c = colors[type];
   g.fillStyle(shade(c, -0.45), 1);
@@ -216,6 +217,12 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
         ],
         true,
       );
+      break;
+    case 'anchor':
+      // A tether running up into a hook at the ceiling.
+      g.lineBetween(cx, cy + 7 * k, cx, cy - 4 * k);
+      g.lineBetween(cx - 5 * k, cy - 7 * k, cx + 5 * k, cy - 7 * k);
+      g.fillTriangle(cx - 4 * k, cy - 3 * k, cx + 4 * k, cy - 3 * k, cx, cy - 8.5 * k);
       break;
   }
 }

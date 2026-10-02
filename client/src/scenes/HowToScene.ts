@@ -13,6 +13,7 @@ const PU_TEXT: Record<PowerUpType, string> = {
   extraTime: 'Extra Time — +20 s on the clock',
   doubleHarpoon: 'Double Tether — two shots at once',
   speedBoost: 'Speed Boost — run faster',
+  anchor: 'Anchor Tether — next shot sticks to the ceiling for 4 s',
 };
 
 export class HowToScene extends Phaser.Scene {
