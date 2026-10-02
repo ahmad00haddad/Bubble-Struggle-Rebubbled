@@ -20,7 +20,7 @@ the classic bubble-popping genre; all names, art, sounds, levels and UI are orig
  │     └ NetClient (WSS)    │                          │     └ NetClient (WSS)    │
  └───────────┬──────────────┘                          └───────────┬──────────────┘
              │  inputs (on change), ping                           │
-             │  ◄── snapshots 15 Hz, room/level msgs               │
+             │  ◄── snapshots 30 Hz, room/level msgs               │
              ▼                                                     ▼
  ┌──────────────────────────────────────────────────────────────────────────────┐
  │ Cloudflare Worker  (worker/src/index.ts)                                      │
@@ -217,7 +217,7 @@ Levels are pure data, validated by `validateLevel()` (unit-tested).
 
 ## 8. Networking strategy
 
-- **Server tick 30 Hz**, snapshots **15 Hz** while things move, ~4 Hz while frozen
+- **Server tick 30 Hz**, snapshots **30 Hz** while things move, ~4 Hz while frozen
   (countdown/pause), none while game over.
 - **Inputs sent only on change** (seq-numbered). The server queues one input per
   tick per player so the client timeline is preserved.
@@ -235,7 +235,7 @@ Levels are pure data, validated by `validateLevel()` (unit-tested).
 
 - Incoming WS messages are billed (20 msgs ≈ 1 request): inputs are sent only
   on change (~3–6/s while playing), ping every 3 s. No polling anywhere.
-- Outgoing snapshots are compact tuples (~0.3–1 KB) at 15 Hz.
+- Outgoing snapshots are compact tuples (~0.3–1 KB) at 30 Hz.
 - WebSocket **Hibernation API**: lobby rooms hibernate; the game loop (setInterval)
   only runs while a match is active and stops at game over / when empty.
 - Storage writes only on seat/ready changes (never per frame); SQLite-backed DOs

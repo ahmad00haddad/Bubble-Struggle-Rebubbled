@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "balance": "node scripts/balance.mjs",
+    "rtt": "node scripts/rtt.mjs",
     "test:e2e": "node tests/e2e/multiplayer.e2e.mjs",
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types worker/worker-configuration.d.ts"

@@ -27,6 +27,8 @@
     "ENVIRONMENT": "production",
     // Comma-separated origins allowed to use the API (your Lovable / custom domains), or "*".
     "ALLOWED_ORIGINS": "*",
-    "LOG_LEVEL": "info"
+    "LOG_LEVEL": "info",
+    // Where new rooms live (Durable Object location hint). "me" = Middle East; clear it to let Cloudflare choose.
+    "DO_LOCATION_HINT": "me"
   }
 }

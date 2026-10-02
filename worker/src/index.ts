@@ -37,7 +37,7 @@ export default {
       if (path === '/api/rooms' && request.method === 'POST') {
         for (let i = 0; i < MAX_CODE_ATTEMPTS; i++) {
           const code = generateRoomCode();
-          const stub = env.GAME_ROOMS.get(env.GAME_ROOMS.idFromName(code));
+          const stub = roomStub(env, code);
           if ((await stub.initRoom(code)) === 'ok') return json(request, env, { code }, 201);
         }
         return json(request, env, { error: 'NO_CODE_AVAILABLE' }, 503);
@@ -47,7 +47,7 @@ export default {
       if (m) {
         const code = normalizeRoomCode(decodeURIComponent(m[1]));
         if (!code) return json(request, env, { error: 'BAD_CODE' }, 400);
-        const stub = env.GAME_ROOMS.get(env.GAME_ROOMS.idFromName(code));
+        const stub = roomStub(env, code);
         if (m[2]) {
           if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
             return json(request, env, { error: 'EXPECTED_WEBSOCKET' }, 426);
@@ -64,3 +64,15 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
+
+const HINTS = ['wnam', 'enam', 'sam', 'weur', 'eeur', 'apac', 'oc', 'afr', 'me'] as const;
+
+/**
+ * The room's Durable Object. The hint only matters when the room is first created: it places
+ * the object near the players instead of wherever is closest to the edge that got the request.
+ */
+function roomStub(env: Env, code: string) {
+  const hint = HINTS.find((h) => h === env.DO_LOCATION_HINT);
+  const id = env.GAME_ROOMS.idFromName(code);
+  return hint ? env.GAME_ROOMS.get(id, { locationHint: hint }) : env.GAME_ROOMS.get(id);
+}

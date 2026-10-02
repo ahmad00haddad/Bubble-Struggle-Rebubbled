@@ -9,7 +9,7 @@ each player on their own device, in the same live game world.
 - **Client:** Phaser 3 + TypeScript + Vite
 - **Server:** Cloudflare Workers + Durable Objects (one object per room) + WebSockets (Hibernation API)
 - **Server-authoritative:** clients send *inputs only*; the room simulates everything
-- **Free-tier friendly:** inputs on change, compact 15 Hz snapshots, no polling, no per-frame storage
+- **Free-tier friendly:** inputs on change, compact 30 Hz snapshots, no polling, no per-frame storage
 
 All names, characters, art (procedurally generated), sounds (synthesized),
 levels and UI are original. Nothing is taken from any commercial game.
@@ -99,7 +99,7 @@ wrangler.jsonc                Worker, DO binding, SQLite migration, assets, vars
 ```
  Phone/PC A ──WSS──┐                         ┌──WSS── Phone/PC B
   inputs on change │   Cloudflare Worker     │ inputs on change
-  ◄─ 15 Hz snaps   └─► /api/rooms/CODE/ws ◄──┘ ◄─ 15 Hz snaps
+  ◄─ 30 Hz snaps   └─► /api/rooms/CODE/ws ◄──┘ ◄─ 30 Hz snaps
                               │ idFromName(CODE)
                               ▼
                   Durable Object  GameRoom "CODE"
@@ -179,7 +179,7 @@ JSON text frames with short keys. Full types: `shared/src/protocol/messages.ts`.
 | `welcome` | after joining: `{slot, token, code}`                                 |
 | `room`    | any lobby/phase/seat change: `{phase, inMatch, seats[], pause?, grace?}` |
 | `level`   | when a level loads: `{i, n, cfg: LevelConfig}` (static data sent once) |
-| `snap`    | 15 Hz while playing (~4 Hz while frozen, none on results screens)    |
+| `snap`    | 30 Hz while playing (~4 Hz while frozen, none on results screens)    |
 | `error`   | `{code, msg}` (`ROOM_FULL`, `ROOM_NOT_FOUND`, `ROOM_EXPIRED`, `RATE_LIMIT`, `REPLACED`, …) |
 
 Snapshot tuples (numbers rounded to 0.1):

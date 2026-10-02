@@ -6,15 +6,15 @@
 export const GAME_NAME = 'ORB LANCERS';
 
 /** Shown on the main menu. Bump it with every change that gets deployed (see CLAUDE.md). */
-export const GAME_VERSION = '1.2';
+export const GAME_VERSION = '1.3';
 
 /** Fixed simulation rate (server and solo). */
 export const TICK_RATE = 30;
 export const TICK_DT = 1 / TICK_RATE;
 export const TICK_MS = 1000 / TICK_RATE;
 
-/** Snapshot cadence, in ticks. 2 → 15 Hz while things move. */
-export const SNAPSHOT_EVERY_TICKS = 2;
+/** Snapshot cadence, in ticks. 1 = 30 Hz while things move (about 10-20 KB/s per client at 4 players). */
+export const SNAPSHOT_EVERY_TICKS = 1;
 /** Cadence while the world is frozen (countdown / pause). 8 → ~4 Hz. */
 export const IDLE_SNAPSHOT_EVERY_TICKS = 8;
 
@@ -390,7 +390,8 @@ export const ROOM = {
 } as const;
 
 export const NET = {
-  interpDelayMs: 100,
+  /** Remote players and orbs are drawn this far in the past; with 30 Hz snapshots 70 ms still spans two of them. */
+  interpDelayMs: 70,
   pingIntervalMs: 3000,
   reconnectDelaysMs: [500, 1000, 2000, 3000, 5000, 8000, 8000, 8000],
   /** Prediction error beyond this snaps instead of smoothing. */
