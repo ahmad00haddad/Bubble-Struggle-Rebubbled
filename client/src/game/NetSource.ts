@@ -1,6 +1,7 @@
-import { moveFxFromPlayers, speedMulOf, type TickedEvent } from '@orb/shared';
+import { INPUT, moveFxFromPlayers, speedMulOf, CHAOS_KINDS, type TickedEvent } from '@orb/shared';
 import type { NetSession } from '../networking/NetSession';
 import { buildView } from './interpolate';
+import { OwnShots } from './ownShots';
 import type { GameSource, ViewState } from './types';
 
 /**
@@ -11,8 +12,13 @@ import type { GameSource, ViewState } from './types';
 export class NetSource implements GameSource {
   readonly mode = 'online' as const;
   private rt = 0;
+  private prevBits = 0;
+  private lastSnapTick = -1;
+  private readonly shots: OwnShots;
 
-  constructor(readonly session: NetSession) {}
+  constructor(readonly session: NetSession) {
+    this.shots = new OwnShots(session.slot);
+  }
 
   get localSlot(): number {
     return this.session.slot;
@@ -41,6 +47,22 @@ export class NetSource implements GameSource {
       latest ? moveFxFromPlayers(latest.players, s.slot) : undefined,
     );
     this.rt = s.buffer.renderTick(performance.now());
+
+    // New snapshot: let real tethers of ours replace their guesses. A restarted tick counter means a new match.
+    if (latest && latest.tick !== this.lastSnapTick) {
+      if (latest.tick < this.lastSnapTick - 30) this.shots.reset();
+      this.lastSnapTick = latest.tick;
+      this.shots.onSnapshot(latest.harpoons);
+    }
+    // Fire press: start our own tether right away (cosmetic; the server still decides).
+    if (bits & INPUT.SHOOT && !(this.prevBits & INPUT.SHOOT) && latest && me) {
+      const jammed = me.fx > 0 && CHAOS_KINDS[me.fx - 1] === 'jam';
+      const canFire = latest.phase === 'playing' && me.active && me.life === 'alive' && !jammed && me.potato <= 0;
+      const max = me.dbl > 0 ? 2 : 1;
+      const live = latest.harpoons.filter((h) => h.owner === s.slot && h.ttl === undefined).length;
+      this.shots.press(s.prediction.displayX, performance.now(), canFire, max, live);
+    }
+    this.prevBits = bits;
   }
 
   view(): ViewState | null {
@@ -62,6 +84,7 @@ export class NetSource implements GameSource {
         }
       }
     }
+    if (latest) v.harpoons = [...v.harpoons.filter((h) => h.owner !== s.slot), ...this.shots.visible(latest.harpoons, s.buffer.latestAt, performance.now())];
     return v;
   }
 

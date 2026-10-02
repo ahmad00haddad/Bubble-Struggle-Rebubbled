@@ -8,6 +8,8 @@ import { NET, TICK_MS, type Snapshot, type TickedEvent } from '@orb/shared';
 export class SnapshotBuffer {
   private snaps: Snapshot[] = [];
   private offset: number | null = null;
+  /** When the newest snapshot arrived (ms, performance clock). */
+  latestAt = 0;
   private events: TickedEvent[] = [];
 
   clear(): void {
@@ -28,6 +30,7 @@ export class SnapshotBuffer {
       else return;
     }
     this.snaps.push(s);
+    this.latestAt = nowMs;
     if (this.snaps.length > 64) this.snaps.shift();
     this.events.push(...s.events);
 
