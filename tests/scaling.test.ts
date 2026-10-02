@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GameSimulation, INPUT, LEVELS, TICK_RATE, orbSpeedMul, scaleProfile } from '@orb/shared';
+import { GAME_VERSION, GameSimulation, INPUT, LEVELS, TICK_RATE, orbSpeedMul, scaleProfile } from '@orb/shared';
 import { formatTable, measure, runLevel } from './balance/harness';
 import { testLevel } from './helpers';
 
@@ -143,5 +143,11 @@ describe('early levels', () => {
   it('level 1 takes a solo bot clearly longer than the old single-orb layout did', () => {
     // Old level 1 (single large orb) measured about 11 s; the retune must stay well above that.
     expect(measure(LEVELS[0], 1, 6).clearSecondsMedian!).toBeGreaterThanOrEqual(15);
+  });
+});
+
+describe('version', () => {
+  it('is a simple major.minor string shown on the menu', () => {
+    expect(GAME_VERSION).toMatch(/^\d+\.\d+$/);
   });
 });

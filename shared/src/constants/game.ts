@@ -5,6 +5,9 @@
 
 export const GAME_NAME = 'ORB LANCERS';
 
+/** Shown on the main menu. Bump it with every change that gets deployed (see CLAUDE.md). */
+export const GAME_VERSION = '1.1';
+
 /** Fixed simulation rate (server and solo). */
 export const TICK_RATE = 30;
 export const TICK_DT = 1 / TICK_RATE;

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { GAME_VERSION } from '@orb/shared';
 import { audio } from '../audio/AudioManager';
 import { VIEW } from '../config/clientConfig';
 import { getSettings } from '../config/settings';
@@ -16,6 +17,7 @@ export class MenuScene extends Phaser.Scene {
     this.cameras.main.fadeIn(220, 7, 10, 31);
     menuBackdrop(this);
     titleText(this, 120, 52);
+    this.add.text(VIEW.width - 14, 14, `v${GAME_VERSION}`, TEXT.display(10, COLORS.accentCss)).setOrigin(1, 0).setAlpha(0.9);
     this.add.text(VIEW.width / 2, 178, 'A CO-OP ORB-POPPING ARCADE ADVENTURE', TEXT.body(18, COLORS.textDim)).setOrigin(0.5);
 
     const cx = VIEW.width / 2;

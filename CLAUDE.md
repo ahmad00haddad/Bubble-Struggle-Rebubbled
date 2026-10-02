@@ -16,6 +16,7 @@ Original online co-op arcade game (bubble-popping genre, no copyrighted names/ar
 - `@orb/shared` is resolved by path aliases (tsconfig, vite, vitest, wrangler `alias`), not npm workspace links.
 
 ## Rules
+- Version: `GAME_VERSION` in `shared/src/constants/game.ts` is shown top-right on the main menu. Bump it (1.1 → 1.2 …) with every change that is deployed, and say the new number when reporting.
 - Server is authoritative: clients send only input bits; never let the client decide hits, score, power-ups.
 - Gameplay changes go in `shared/` so server and solo mode stay identical. Add a unit test for each.
 - Never send full state per frame, never write game state to storage (free-tier budget).
