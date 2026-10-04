@@ -120,6 +120,64 @@ describe('RoomCore', () => {
     expect(new Set(xs).size).toBe(4); // distinct spawns
   });
 
+  describe('single-level rooms (host pick)', () => {
+    const lobby = () => {
+      room.init('ABC234');
+      room.join(a, 'Ada', null);
+      room.join(b, 'Bo', null);
+    };
+
+    it('the host can pick one level; the match plays only it and reports its real number', () => {
+      lobby();
+      send(room, a, { t: 'pick', v: 1 });
+      expect(a.last('room')?.pick).toBe(1);
+      send(room, a, { t: 'ready', v: true });
+      send(room, b, { t: 'ready', v: true });
+      expect(room.match!.sim.levels).toHaveLength(1);
+      const lv = a.last('level')!;
+      expect(lv.cfg.id).toBe('l2');
+      expect(lv.i).toBe(1);
+      expect(lv.o).toBe(1);
+      expect(lv.n).toBe(levels.length);
+    });
+
+    it('clearing the picked level ends the match with a victory', () => {
+      lobby();
+      send(room, a, { t: 'pick', v: 0 });
+      send(room, a, { t: 'ready', v: true });
+      send(room, b, { t: 'ready', v: true });
+      ticks(room, host, MATCH.countdownSeconds * TICK_RATE + 2);
+      room.match!.sim.bubbles = [];
+      ticks(room, host, 3);
+      expect(room.match!.phase).toBe('victory');
+    });
+
+    it('a non-host cannot pick, and a bad index falls back to all levels', () => {
+      lobby();
+      send(room, b, { t: 'pick', v: 1 });
+      expect(a.last('room')?.pick).toBe(-1);
+      send(room, a, { t: 'pick', v: 99 });
+      expect(a.last('room')?.pick).toBe(-1);
+    });
+
+    it('no pick plays every level in order', () => {
+      lobby();
+      send(room, a, { t: 'ready', v: true });
+      send(room, b, { t: 'ready', v: true });
+      expect(room.match!.sim.levels).toHaveLength(levels.length);
+      expect(a.last('level')?.cfg.id).toBe('l1');
+      expect(a.last('level')?.o).toBeUndefined();
+    });
+
+    it('the pick cannot change once a match is running', () => {
+      lobby();
+      send(room, a, { t: 'ready', v: true });
+      send(room, b, { t: 'ready', v: true });
+      send(room, a, { t: 'pick', v: 1 });
+      expect(a.last('room')?.pick).toBe(-1);
+    });
+  });
+
   it('both ready → countdown → playing, with level + snapshots to both', () => {
     startMatch();
     expect(host.loop).toBe(true);

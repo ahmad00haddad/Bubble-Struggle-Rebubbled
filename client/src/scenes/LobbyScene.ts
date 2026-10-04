@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { RoomInfo } from '@orb/shared';
+import { LEVELS, type RoomInfo } from '@orb/shared';
 import { LANCER_FRAMES, TEXTURES, TEX_SCALE } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
 import { LanCoordinator } from '../lan/LanCoordinator';
@@ -19,6 +19,7 @@ export class LobbyScene extends Phaser.Scene {
   private net!: Phaser.GameObjects.Text;
   private startBtn!: Button;
   private chaosBtn!: Button;
+  private levelBtn!: Button;
   private lanBtn: Button | null = null;
   private lan: LanCoordinator | null = null;
   private noteUntil = 0;
@@ -62,15 +63,18 @@ export class LobbyScene extends Phaser.Scene {
 
     this.status = this.add.text(cx, 366, '', TEXT.body(19)).setOrigin(0.5);
     const canLan = !session.peer && LanCoordinator.supported;
-    this.chaosBtn = new Button(this, canLan ? cx - 165 : cx, 406, 'CHAOS: ON', () => this.toggleChaos(), { width: canLan ? 310 : 320, fontSize: canLan ? 9 : 10 });
+    const bw = canLan ? 230 : 320;
+    const bx = canLan ? [cx - 240, cx, cx + 240] : [cx - 165, cx + 165, 0];
+    this.chaosBtn = new Button(this, bx[0], 406, 'CHAOS: ON', () => this.toggleChaos(), { width: bw, fontSize: canLan ? 8 : 10 });
+    this.levelBtn = new Button(this, bx[1], 406, 'LEVELS: ALL', () => this.pickLevel(), { width: bw, fontSize: canLan ? 8 : 10 });
     if (canLan) {
-      this.lanBtn = new Button(this, cx + 165, 406, 'LAN MATCH (P2P)', () => void this.lan?.startAsHost(), { width: 310, fontSize: 9 });
+      this.lanBtn = new Button(this, bx[2], 406, 'LAN MATCH (P2P)', () => void this.lan?.startAsHost(), { width: bw, fontSize: 8 });
       this.lan = new LanCoordinator(session, session.nickname, { status: (t, bad) => this.note(t, bad), adopt: (s) => this.adoptLan(s) });
     }
     this.startBtn = new Button(this, cx, 456, 'START', () => this.toggleReady(), { primary: true, width: 320 });
     const copyLink = session.peer ? null : new Button(this, cx - 130, 514, 'COPY INVITE LINK', () => this.copy(this.inviteLink(), 'Invite link copied!'), { width: 250, fontSize: 11 });
     const leave = new Button(this, session.peer ? cx : cx + 130, 514, 'LEAVE ROOM', () => this.leave(), { width: session.peer ? 320 : 250, fontSize: 11 });
-    const group = [this.startBtn, this.chaosBtn, ...(this.lanBtn ? [this.lanBtn] : []), ...(copyLink ? [copyLink] : []), leave];
+    const group = [this.startBtn, this.chaosBtn, this.levelBtn, ...(this.lanBtn ? [this.lanBtn] : []), ...(copyLink ? [copyLink] : []), leave];
     new ButtonGroup(this, group, { onBack: () => this.leave() }).focus(0);
     this.net = this.add.text(VIEW.width - 12, VIEW.height - 10, '', TEXT.body(14, COLORS.textDim)).setOrigin(1, 1);
 
@@ -118,6 +122,10 @@ export class LobbyScene extends Phaser.Scene {
     const isHost = room.host === me;
     this.chaosBtn.setText(`CHAOS PICKUPS: ${room.chaos ? 'ON' : 'OFF'}${isHost ? '' : ' (HOST ONLY)'}`);
     this.chaosBtn.setEnabled(isHost);
+    const pick = room.pick ?? -1;
+    const lv = pick >= 0 ? LEVELS[pick] : undefined;
+    this.levelBtn.setText(pick >= 0 ? `LEVEL ${pick + 1}: ${(lv?.name ?? '').toUpperCase()}${isHost ? '' : ' (HOST)'}` : `LEVELS: ALL${isHost ? '' : ' (HOST ONLY)'}`);
+    this.levelBtn.setEnabled(isHost);
     if (this.lanBtn) {
       const friends = room.seats.some((st, i) => !!st && st.connected && i !== me);
       this.lanBtn.setText(isHost ? 'LAN MATCH (P2P)' : 'LAN MATCH (HOST ONLY)');
@@ -157,6 +165,13 @@ export class LobbyScene extends Phaser.Scene {
     s.connect();
     cloud.leave();
     goTo(this, SCENES.lobby);
+  }
+
+  private pickLevel(): void {
+    const room = this.session.room;
+    if (!room || room.host !== this.session.slot) return;
+    audio.unlock();
+    goTo(this, SCENES.levelSelect, { forRoom: true });
   }
 
   private toggleChaos(): void {

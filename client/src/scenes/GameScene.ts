@@ -25,6 +25,8 @@ export interface GameSceneData {
   nickname?: string;
   /** Solo only: start at this level index (dev / level testing). */
   startLevel?: number;
+  /** Solo only: play just `startLevel` (from the Practice menu). */
+  practice?: boolean;
 }
 
 
@@ -79,7 +81,7 @@ export class GameScene extends Phaser.Scene {
       session.on('error', this.onNetError, this);
     } else {
       this.session = null;
-      this.source = new LocalSource(data.nickname || 'Lancer', data.startLevel ?? 0);
+      this.source = new LocalSource(data.nickname || 'Lancer', data.startLevel ?? 0, !!data.practice);
     }
 
     this.input2 = new InputController();
@@ -635,7 +637,7 @@ export class GameScene extends Phaser.Scene {
         .map((p) => `${(names[p.slot] ?? 'P' + (p.slot + 1)).toUpperCase()}   ${String(p.score).padStart(6, '0')}`)
         .join('\n');
       add(this.add.text(cx, cy - 64, scoreLines, TEXT.display(14)).setOrigin(0.5).setAlign('center').setLineSpacing(10));
-      if (won) body(cy - 4, `All ${this.source.levelCount} levels cleared. Legendary teamwork!`, COLORS.textDim, 16);
+      if (won) body(cy - 4, this.source.practice ? 'Practice level cleared!' : `All ${this.source.levelCount} levels cleared. Legendary teamwork!`, COLORS.textDim, 16);
       if (online) {
         const seats = this.session?.room?.seats ?? [];
         const mine = seats[this.source.localSlot]?.rematch;

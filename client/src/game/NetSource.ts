@@ -75,6 +75,7 @@ export class NetSource implements GameSource {
     const nowMs = performance.now();
     const orbs = newest ? { snap: newest, ticks: Math.min(MAX_ORB_EXTRAPOLATE_TICKS, Math.max(0, s.buffer.serverTick(nowMs) - newest.tick)) } : undefined;
     const v = buildView(f.a, f.b, this.rt, s.level, orbs);
+    v.levelIndex += s.levelOffset;
     const me = v.players[s.slot];
     if (me && me.active && me.life === 'alive') me.x = s.prediction.displayX;
     // HUD values (lives/score/timer) from the newest snapshot feel snappier.

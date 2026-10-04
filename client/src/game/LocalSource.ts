@@ -1,4 +1,4 @@
-import { LEVELS, Match, TICK_MS, snapshotFromMatch, type Snapshot, type TickedEvent } from '@orb/shared';
+import { LEVELS, Match, TICK_MS, snapshotFromMatch, type LevelConfig, type Snapshot, type TickedEvent } from '@orb/shared';
 import { buildView } from './interpolate';
 import type { GameSource, ViewState } from './types';
 
@@ -11,6 +11,11 @@ export class LocalSource implements GameSource {
   readonly mode = 'solo' as const;
   readonly localSlot = 0;
   readonly levelCount = LEVELS.length;
+  /** Practice: one chosen level, played alone. */
+  readonly practice: boolean;
+  private readonly levels: readonly LevelConfig[];
+  /** Practice shows the real level number, not 1. */
+  private readonly offset: number;
   private match: Match;
   private acc = 0;
   private prev: Snapshot;
@@ -19,13 +24,16 @@ export class LocalSource implements GameSource {
   private seq = 0;
   private lastBits = 0;
 
-  constructor(private nickname: string, startLevel = 0) {
-    this.match = this.newMatch(startLevel);
+  constructor(private nickname: string, startLevel = 0, practice = false) {
+    this.practice = practice;
+    this.levels = practice ? [LEVELS[Math.min(Math.max(startLevel, 0), LEVELS.length - 1)]] : LEVELS;
+    this.offset = practice ? Math.min(Math.max(startLevel, 0), LEVELS.length - 1) : 0;
+    this.match = this.newMatch(practice ? 0 : startLevel);
     this.prev = this.curr = snapshotFromMatch(this.match);
   }
 
   private newMatch(startLevel: number): Match {
-    const m = new Match({ levels: LEVELS, activeSlots: [true], seed: (Math.random() * 2 ** 32) >>> 0, startLevel, shuffle: true });
+    const m = new Match({ levels: this.levels, activeSlots: [true], seed: (Math.random() * 2 ** 32) >>> 0, startLevel });
     this.events.push(...m.drainEvents());
     return m;
   }
@@ -60,7 +68,7 @@ export class LocalSource implements GameSource {
     v.phase = this.curr.phase;
     v.phaseTicks = this.curr.phaseTicks;
     v.timeLeftTicks = this.curr.timeLeftTicks;
-    v.levelIndex = this.curr.levelIndex;
+    v.levelIndex = this.curr.levelIndex + this.offset;
     return v;
   }
 

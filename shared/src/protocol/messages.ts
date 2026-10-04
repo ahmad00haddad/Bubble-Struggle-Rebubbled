@@ -10,6 +10,7 @@ export type ClientMessage =
   | { t: 'in'; s: number; b: number }
   | { t: 'ready'; v: boolean }
   | { t: 'chaos'; v: boolean }
+  | { t: 'pick'; v: number }
   | { t: 'rtc'; to: number; d: string }
   | { t: 'pause' }
   | { t: 'resume' }
@@ -43,6 +44,10 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case 'ready':
       if (typeof o.v !== 'boolean') return null;
       return { t: 'ready', v: o.v };
+    case 'pick':
+      // Host option: -1 plays every level in order, otherwise only that level (index into the room's level list).
+      if (!Number.isInteger(o.v) || (o.v as number) < -1 || (o.v as number) > 255) return null;
+      return { t: 'pick', v: o.v as number };
     case 'chaos':
       if (typeof o.v !== 'boolean') return null;
       return { t: 'chaos', v: o.v };
@@ -130,6 +135,8 @@ export interface RoomInfo {
   host: number;
   /** Chaos pickups on (multiplayer only). */
   chaos: boolean;
+  /** Host option: -1 = play all levels in order, otherwise the one level to play (practice). */
+  pick: number;
   pause?: { by: number; reason: 'player' | 'disconnect' };
   /** A disconnected partner's reconnect window. */
   grace?: { slot: number; msLeft: number };
@@ -172,7 +179,8 @@ export interface SnapMessage {
 export type ServerMessage =
   | { t: 'welcome'; slot: number; token: string; code: string }
   | ({ t: 'room' } & RoomInfo)
-  | { t: 'level'; i: number; n: number; cfg: LevelConfig }
+  /** `o` = how many levels precede a single picked level, so the HUD can show its real number. */
+  | { t: 'level'; i: number; n: number; cfg: LevelConfig; o?: number }
   | { t: 'rtc'; from: number; d: string }
   | SnapMessage
   | { t: 'pong'; c: number; s: number }

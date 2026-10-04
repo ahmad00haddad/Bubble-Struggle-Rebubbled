@@ -6,6 +6,7 @@ import { HowToScene } from './scenes/HowToScene';
 import { LobbyScene } from './scenes/LobbyScene';
 import { MenuScene } from './scenes/MenuScene';
 import { OnlineScene } from './scenes/OnlineScene';
+import { LevelSelectScene } from './scenes/LevelSelectScene';
 import { PowerUpsScene } from './scenes/PowerUpsScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { REGISTRY } from './scenes/keys';
@@ -59,7 +60,7 @@ export function mountGame(parent: HTMLElement, opts: MountOptions = {}): GameHan
     // ?timerLoop=1 drives the loop with setTimeout instead of requestAnimationFrame
     // (useful for automated tests in background/hidden browser tabs).
     fps: { target: 60, forceSetTimeOut: new URLSearchParams(window.location.search).has('timerLoop') },
-    scene: [BootScene, MenuScene, HowToScene, PowerUpsScene, SettingsScene, OnlineScene, LobbyScene, GameScene],
+    scene: [BootScene, MenuScene, HowToScene, PowerUpsScene, SettingsScene, OnlineScene, LobbyScene, LevelSelectScene, GameScene],
   });
   return {
     game,

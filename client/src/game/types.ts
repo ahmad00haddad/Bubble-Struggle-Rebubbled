@@ -58,6 +58,8 @@ export interface GameSource {
   readonly localSlot: number;
   readonly level: LevelConfig | null;
   readonly levelCount: number;
+  /** Solo practice on one chosen level. */
+  readonly practice?: boolean;
   names(): string[];
   /** Advance local clocks/prediction and feed the current input bits. */
   update(dtMs: number, inputBits: number): void;

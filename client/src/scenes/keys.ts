@@ -6,6 +6,7 @@ export const SCENES = {
   settings: 'Settings',
   online: 'Online',
   lobby: 'Lobby',
+  levelSelect: 'LevelSelect',
   game: 'Game',
 } as const;
 

@@ -51,6 +51,8 @@ export interface RoomMeta {
   seats: (SeatMeta | null)[];
   /** Room option, host-controlled in the lobby. Absent means on. */
   chaos?: boolean;
+  /** Host option: play only this level index; absent or -1 means every level in order. */
+  pick?: number;
   /** Set when the room has expired; the record is kept briefly as a tombstone. */
   expiredAt?: number;
 }
@@ -104,6 +106,8 @@ export class RoomCore {
   meta: RoomMeta | null;
   seats: (Seat | null)[] = emptySeats();
   match: Match | null = null;
+  /** Levels before the first one of this match (a single picked level shows its real number). */
+  private matchOffset = 0;
   private levels: readonly LevelConfig[];
   private loopRunning = false;
   private sentLevelVersion = -1;
@@ -334,6 +338,14 @@ export class RoomCore {
         if (msg.to !== slot && target?.conn) this.sendTo(target.conn, { t: 'rtc', from: slot, d: msg.d });
         return;
       }
+      case 'pick': {
+        // Host only, and only before a match starts.
+        if (m || slot !== this.hostSlot() || !this.meta) return;
+        this.meta.pick = msg.v >= 0 && msg.v < this.levels.length ? msg.v : -1;
+        this.persist();
+        this.broadcastRoom();
+        return;
+      }
       case 'chaos': {
         // Host only, and only before a match starts.
         if (m || slot !== this.hostSlot() || !this.meta) return;
@@ -413,7 +425,10 @@ export class RoomCore {
   private startMatch(): void {
     if (!this.meta) return;
     const active = this.seats.map((s) => !!s && !!s.conn);
-    this.match = new Match({ levels: this.levels, activeSlots: active, seed: Math.floor(this.host.random() * 2 ** 32), shuffle: true, chaos: this.meta.chaos !== false });
+    const pick = this.meta.pick ?? -1;
+    const single = pick >= 0 && pick < this.levels.length;
+    this.matchOffset = single ? pick : 0;
+    this.match = new Match({ levels: single ? [this.levels[pick]] : this.levels, activeSlots: active, seed: Math.floor(this.host.random() * 2 ** 32), chaos: this.meta.chaos !== false });
     this.sentLevelVersion = -1;
     this.pendingEvents = [];
     this.ticksSinceSnap = 0;
@@ -606,6 +621,7 @@ export class RoomCore {
       inMatch: !!m,
       host: this.hostSlot(),
       chaos: this.meta?.chaos !== false,
+      pick: this.meta?.pick ?? -1,
       seats: this.seats.map((s, i) =>
         s
           ? {
@@ -669,7 +685,7 @@ export class RoomCore {
   private sendLevel(conn: Conn): void {
     const m = this.match;
     if (!m) return;
-    this.sendTo(conn, { t: 'level', i: m.sim.levelIndex, n: this.levels.length, cfg: m.sim.level });
+    this.sendTo(conn, { t: 'level', i: m.sim.levelIndex + this.matchOffset, n: this.levels.length, cfg: m.sim.level, ...(this.matchOffset ? { o: this.matchOffset } : {}) });
   }
 
   private sendSnapshot(): void {

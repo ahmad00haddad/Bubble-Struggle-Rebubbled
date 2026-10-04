@@ -39,6 +39,8 @@ export class NetSession extends Phaser.Events.EventEmitter {
   room: RoomInfo | null = null;
   level: LevelConfig | null = null;
   levelIndex = 0;
+  /** Practice room: levels before the single level being played. */
+  levelOffset = 0;
   levelCount = 0;
   error: { code: ErrorCode | 'UNREACHABLE'; msg: string } | null = null;
   readonly buffer = new SnapshotBuffer();
@@ -94,6 +96,11 @@ export class NetSession extends Phaser.Events.EventEmitter {
   sendInput(bits: number): void {
     const seq = this.prediction.setBits(bits);
     if (seq !== null) this.client.send({ t: 'in', s: seq, b: bits });
+  }
+
+  /** Host only: play one level only (index), or -1 for every level in order. */
+  setPick(v: number): void {
+    this.client.send({ t: 'pick', v });
   }
 
   /** Host only: switch chaos pickups on or off before the match starts. */
@@ -158,6 +165,7 @@ export class NetSession extends Phaser.Events.EventEmitter {
       case 'level':
         this.level = m.cfg;
         this.levelIndex = m.i;
+        this.levelOffset = m.o ?? 0;
         this.levelCount = m.n;
         this.emit('level', m.cfg);
         break;
