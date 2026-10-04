@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { BUBBLE_SIZES, INPUT, TICK_RATE, type TickedEvent } from '@orb/shared';
+import { BUBBLE_SIZES, INPUT, RELIC_KINDS, TICK_RATE, type TickedEvent } from '@orb/shared';
+import { RELIC_INFO } from '../config/relics';
 import { orbColor, TEXTURES } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
@@ -232,6 +233,45 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'sp':
         this.onSpecial(e, v);
+        break;
+      case 'relic': {
+        const who = v.players[e.p];
+        const x = e.x;
+        const y = VIEW.arenaBottom - 30;
+        if (e.t === 'get' && e.r !== undefined) {
+          audio.play('combo');
+          this.burst(x, y, 0xa855f7, 30, 240);
+          this.floatText(x, y - 70, `RELIC: ${RELIC_INFO[RELIC_KINDS[e.r]].name}`, '#d8b4fe', 11);
+          if (who) this.cameras.main.flash(100, 168, 85, 247, false);
+        } else if (e.t === 'full') {
+          audio.play('pickup');
+          this.floatText(x, y - 70, 'RELICS FULL +300', '#d8b4fe', 9);
+        } else if (e.t === 'dash') {
+          audio.play('sync', { pitch: 1.6 });
+          this.burst(x, y, 0xffffff, 10, 160);
+        } else if (e.t === 'wake') {
+          audio.play('pickup', { pitch: 1.3 });
+          this.floatText(x, y - 70, 'SECOND WIND', '#d8b4fe', 9);
+        } else if (e.t === 'lifeline') {
+          this.floatText(x, y - 70, 'LIFELINE!', '#d8b4fe', 9);
+        } else if (e.t === 'share') {
+          audio.play('pickup', { pitch: 1.2 });
+          this.burst(x, y, 0x4cc9f0, 10, 140);
+        }
+        break;
+      }
+      case 'stage':
+        if (e.t === 'wallWarn' || e.t === 'mirrorWarn') audio.play('warn');
+        else if (e.t === 'wallStart') {
+          audio.play('sky');
+          shake(160, 0.006);
+        } else if (e.t === 'mirrorStart') audio.play('chaos');
+        break;
+      case 'pinch':
+        audio.play('combo');
+        this.burst(e.x, top + e.y, 0xffe066, 26, 240);
+        this.floatText(e.x, top + e.y - 26, 'PINCH!', '#ffe066', 12);
+        shake(120, 0.006);
         break;
       case 'gift':
         this.onGift(e, v);

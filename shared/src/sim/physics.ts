@@ -1,4 +1,4 @@
-import { BUBBLE_SIZES, CHAOS, CHAOS_KINDS, HARPOON, RARE, INPUT, PHYSICS, PLAYER, POWERUP, TICK_DT, WORLD, bounceVelocity } from '../constants/game';
+import { BUBBLE_SIZES, CHAOS, CHAOS_KINDS, HARPOON, RARE, INPUT, PHYSICS, PLAYER, POWERUP, STAGE, TICK_DT, WORLD, bounceVelocity } from '../constants/game';
 import type { Rect } from '../types/level';
 import type { BubbleState, PowerUpState } from '../types/state';
 
@@ -26,6 +26,15 @@ export interface MoveFx {
   slow?: boolean;
   /** Tether partner's x, when tethered. */
   tetherX?: number | null;
+  /** Split Wall: the furthest this Lancer may go left and right. */
+  lo?: number;
+  hi?: number;
+}
+
+/** Wall bounds for a Lancer at x (left of the wall it stays left, right of it stays right). */
+export function wallBounds(wallX: number, x: number): MoveFx {
+  const edge = STAGE.wall.thickness / 2 + PLAYER.width / 2;
+  return x < wallX ? { lo: PLAYER.width / 2, hi: wallX - edge } : { lo: wallX + edge, hi: WORLD.width - PLAYER.width / 2 };
 }
 
 /** Movement effect for a chaos effect index (0 = none) and the tether partner's x. */
@@ -36,10 +45,11 @@ export function moveFxOf(fx: number, partnerX: number | null): MoveFx {
 
 /** movePlayerX plus chaos effects: reversed keys, slowed legs, a tether to a teammate. */
 export function movePlayerFx(x: number, input: number, speedMul: number, fx: MoveFx | undefined, dt = TICK_DT): number {
-  if (!fx || (!fx.flip && !fx.slow && fx.tetherX == null)) return movePlayerX(x, input, speedMul, dt);
+  if (!fx || (!fx.flip && !fx.slow && fx.tetherX == null && fx.lo === undefined)) return movePlayerX(x, input, speedMul, dt);
   let bits = input;
   if (fx.flip) bits = (input & ~(INPUT.LEFT | INPUT.RIGHT)) | (input & INPUT.LEFT ? INPUT.RIGHT : 0) | (input & INPUT.RIGHT ? INPUT.LEFT : 0);
-  const nx = movePlayerX(x, bits, fx.slow ? speedMul * CHAOS.slowMul : speedMul, dt);
+  let nx = movePlayerX(x, bits, fx.slow ? speedMul * CHAOS.slowMul : speedMul, dt);
+  if (fx.lo !== undefined) nx = clamp(nx, fx.lo, fx.hi ?? WORLD.width);
   if (fx.tetherX == null) return nx;
   const range = CHAOS.tetherRange;
   if (Math.abs(x - fx.tetherX) > range) return Math.abs(nx - fx.tetherX) < Math.abs(x - fx.tetherX) ? nx : x; // already stretched: only moves toward the partner

@@ -34,6 +34,7 @@ export const POWERUP_INFO: Record<PowerUpType, CrateInfo> = {
   baton: { label: 'BATON!', name: 'BATON', desc: 'Shield for you. A teammate pops an orb in 3 s: shield for them too.', kind: 'team' },
   flare: { label: 'RESCUE FLARE!', name: 'RESCUE FLARE', desc: 'Brings a fallen teammate back right where you stand.', kind: 'team' },
   boomerang: { label: 'BOOMERANG!', name: 'BOOMERANG', desc: 'Piercing shot that returns. Up to 3 hits.', kind: 'good' },
+  relic: { label: 'RELIC!', name: 'UNKNOWN RELIC', desc: 'A permanent trait for the rest of the run. Dropped when the team works together.', kind: 'team' },
 };
 
 export const KIND_COLOR: Record<CrateKind, string> = {

@@ -54,3 +54,9 @@ export function onSpikes(level: LevelConfig, x: number): boolean {
   const half = PLAYER.hitboxWidth / 2;
   return (level.spikes ?? []).some((s) => x + half > s.x && x - half < s.x + s.w);
 }
+
+/** Does a Lancer at x stand on an ice patch? */
+export function onIce(level: LevelConfig, x: number): boolean {
+  const half = PLAYER.hitboxWidth / 2;
+  return (level.ice ?? []).some((s) => x + half > s.x && x - half < s.x + s.w);
+}

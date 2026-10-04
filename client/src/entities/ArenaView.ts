@@ -124,6 +124,17 @@ export class ArenaView {
     }
     this.layer.add(sg);
 
+    // ice patches
+    const ig = s.add.graphics();
+    for (const ic of level.ice ?? []) {
+      ig.fillStyle(0xaee9ff, 0.35);
+      ig.fillRect(ic.x, bottom - 10, ic.w, 10);
+      ig.fillStyle(0xffffff, 0.55);
+      ig.fillRect(ic.x, bottom - 10, ic.w, 2);
+      for (let x = ic.x + 10; x < ic.x + ic.w - 8; x += 26) ig.fillRect(x, bottom - 7, 8, 1.5);
+    }
+    this.layer.add(ig);
+
     // frame
     const fr = s.add.graphics();
     fr.lineStyle(3, shade(accent, -0.3), 0.9);

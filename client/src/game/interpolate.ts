@@ -41,6 +41,7 @@ export function buildView(a: Snapshot, b: Snapshot | null, rt: number, level: Le
     timeLeftTicks: a.timeLeftTicks,
     levelIndex: a.levelIndex,
     sky: os.sky,
+    stage: os.stage,
     heat: os.heat,
     baton: os.baton,
     slow: os.slow,

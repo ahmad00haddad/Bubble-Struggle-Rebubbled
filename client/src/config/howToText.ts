@@ -1,9 +1,12 @@
-import type { PowerUpType } from '@orb/shared';
+import type { PowerUpType, RelicKind } from '@orb/shared';
 import type { CrateKind } from './powerups';
 
 /** Arabic text for the "How to play" and power-up guide pages. English lives in the scenes / powerups.ts. */
 export const HOWTO_AR = {
   title: 'طريقة اللعب',
+  relics: 'الآثار',
+  relicsTitle: 'الآثار: قدرات دائمة',
+  relicsHint: 'تسقط صناديق الأثر المجهول عندما ينجح الفريق في عمل مشترك. تبقى معك حتى نهاية الرحلة.',
   lines: (smallPts: number) => [
     'فرقع كل الكرات قبل أن ينتهي الوقت.',
     'حبلك ينطلق للأعلى بخط مستقيم، وأي كرة يلمسها تُصاب.',
@@ -59,4 +62,21 @@ export const POWERUP_AR: Record<PowerUpType, { name: string; desc: string }> = {
   baton: { name: 'العصا', desc: 'درع لك. إذا فرقع زميلك كرة خلال 3 ثوانٍ يحصل هو أيضاً على درع.' },
   flare: { name: 'إشارة الإنقاذ', desc: 'تُعيد زميلاً سقط إلى المكان الذي تقف فيه.' },
   boomerang: { name: 'البوميرانغ', desc: 'طلقة تخترق الكرات وتعود. حتى 3 إصابات.' },
+  relic: { name: 'أثر مجهول', desc: 'قدرة دائمة حتى نهاية الرحلة. تسقط عندما ينجح الفريق في عمل مشترك.' },
+};
+
+/** Relics in Arabic. */
+export const RELIC_AR: Record<RelicKind, { name: string; desc: string }> = {
+  magnet: { name: 'اليد المغناطيسية', desc: 'الصناديق القريبة تنجذب نحوك.' },
+  quickdraw: { name: 'السحب السريع', desc: 'أول حبل بعد العودة للحياة أو بداية المرحلة ينطلق فوراً ومن مكان أعلى.' },
+  anchor: { name: 'سيد المرساة', desc: 'شحن المرساة ومدة التصاقها أطول بنسبة 50%.' },
+  dash: { name: 'الاندفاع', desc: 'اضغط اتجاهاً مرتين للاندفاع مع حماية قصيرة. إعادة التعبئة 4 ثوانٍ.' },
+  guardian: { name: 'الحارس', desc: 'الكرات القريبة منك أبطأ. ابقَ قرب فريقك.' },
+  relay: { name: 'التتابع', desc: 'بعد أن يفرقع زميلك كرة، تحصل على حبل ثانٍ لمدة 1.5 ثانية.' },
+  coordinator: { name: 'المنسّق', desc: 'الأهداف التعاونية التي تبدأها تمنح الفريق وقتاً أطول بنسبة 50%.' },
+  lifeline: { name: 'حبل النجاة', desc: 'سقوط زميل يمنحك دفعة سرعة، وإشارة الإنقاذ تدوم أطول.' },
+  teamplayer: { name: 'لاعب الفريق', desc: 'زميل قريب يحصل على نسخة قصيرة من درعك أو سرعتك أو حبلك المزدوج.' },
+  secondwind: { name: 'النَّفَس الثاني', desc: 'مرة كل مرحلة: تعود أسرع وبحماية إضافية.' },
+  lightfeet: { name: 'خفة القدمين', desc: 'الجليد بالكاد يزلقك.' },
+  steadyhand: { name: 'اليد الثابتة', desc: 'انعكاس التحكم يدوم نصف المدة.' },
 };

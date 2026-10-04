@@ -64,6 +64,13 @@ export function validateLevel(l: LevelConfig): string[] {
   for (let slot = 0; slot < 4; slot++) {
     if (onSpikes(l, spawnX(l, slot))) errs.push(`${where}: spawn for slot ${slot} is on spikes`);
   }
+  (l.ice ?? []).forEach((ic, i) => {
+    if (ic.w <= 0 || ic.x < 0 || ic.x + ic.w > WORLD.width) errs.push(`${where}: ice patch ${i} out of bounds`);
+  });
+  for (const k of ['wall', 'mirror'] as const) {
+    const n = l.stage?.[k];
+    if (n !== undefined && !(Number.isInteger(n) && n >= 0 && n <= 3)) errs.push(`${where}: stage.${k} must be an integer 0..3`);
+  }
   if (l.bombs && !(l.bombs.every > 0 && l.bombs.fuse > 0 && l.bombs.radius > 0)) errs.push(`${where}: bombs need every, fuse, radius > 0`);
   if (l.sky) {
     if (!(Number.isInteger(l.sky.budget) && l.sky.budget >= 0 && l.sky.budget <= 6)) errs.push(`${where}: sky.budget must be an integer 0..6`);

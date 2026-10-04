@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BUBBLE_SIZES, CHAOS_KINDS, RARE, SKY, SPECIAL, WORLD, coopWindow, ghostStage, type SpecialKind } from '@orb/shared';
+import { BUBBLE_SIZES, CHAOS_KINDS, RARE, RELIC, RELIC_KINDS, SKY, SPECIAL, WORLD, coopWindow, ghostStage, type SpecialKind } from '@orb/shared';
 import { PLAYER_COLORS, VIEW } from '../config/clientConfig';
 import type { ViewState } from '../game/types';
 import { setLabel } from '../ui/text';
@@ -196,6 +196,30 @@ export class FxLayer {
         this.arc(holder.x, yy, 30, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, v.baton.t / RARE.batonSeconds), 0x4cc9f0, 4, 0.95);
         this.arc(holder.x, yy, 36, 0, Math.PI * 2, 0x4cc9f0, 2, 0.25 + 0.5 * pulse);
       }
+    }
+
+    // Stage events: the Split Wall (warning line, then a solid energy wall) and the Mirror warning.
+    const stage = v.stage;
+    if (stage?.kind === 'wall') {
+      const flash = stage.phase === 'warn' ? (Math.floor(timeMs / 110) % 2 === 0 ? 0.9 : 0.25) : 1;
+      const wx = stage.x;
+      const yTop = VIEW.arenaY;
+      const yBot = VIEW.arenaBottom;
+      if (stage.phase === 'active') {
+        g.fillStyle(0x4cc9f0, 0.22);
+        g.fillRect(wx - 9, yTop, 18, yBot - yTop);
+      }
+      g.lineStyle(stage.phase === 'active' ? 4 : 2, stage.phase === 'active' ? 0xffffff : 0x4cc9f0, flash);
+      g.lineBetween(wx, yTop, wx, yBot);
+      this.label('stage', VIEW.width / 2, VIEW.arenaY + 40, stage.phase === 'warn' ? 'WALL RISING…' : 'SPLIT WALL', '#4cc9f0', 11);
+    } else if (stage?.kind === 'mirror') {
+      this.label('stage', VIEW.width / 2, VIEW.arenaY + 40, stage.phase === 'warn' ? 'MIRROR…' : 'CONTROLS REVERSED!', '#e879f9', 11);
+    }
+
+    // Guardian: a faint dashed aura where orbs move slower.
+    const guardianBit = 1 << RELIC_KINDS.indexOf('guardian');
+    for (const p of v.players) {
+      if (p.active && p.life === 'alive' && (p.rel & guardianBit) !== 0) this.dashedRing(p.x, VIEW.arenaBottom - 22, RELIC.guardian.radius, 0x7ff3ff, timeMs);
     }
 
     // Tether between linked Lancers.

@@ -34,6 +34,8 @@ export interface SpecialHost {
   activePlayers(): number;
   /** Cooperative target counters (telemetry only). */
   readonly coopStats: CoopStats;
+  /** Window factor for cooperative targets started by this Lancer (Coordinator relic). */
+  windowMul(owner: number): number;
   /** Add seconds to the level clock (team reward). */
   addTime(seconds: number): void;
   /** Every orb currently in play. */

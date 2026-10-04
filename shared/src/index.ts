@@ -14,6 +14,7 @@ export * from './protocol/roomCode';
 export * from './sim/hazards';
 export * from './sim/scaling';
 export * from './sim/director';
+export * from './sim/stage';
 export * from './sim/specials';
 export { ghostStage, GHOST_CYCLE_SECONDS } from './sim/specials/ghost';
 export * from './levels/order';

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { CHAOS_KINDS } from '@orb/shared';
+import { CHAOS_KINDS, RELIC_KINDS } from '@orb/shared';
+import { RELIC_INFO } from '../config/relics';
 import { LANCER_FRAMES, TEXTURES, TEX_SCALE } from '../assets/textures';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
 import type { ViewPlayer } from '../game/types';
@@ -13,6 +14,7 @@ export class PlayerView {
   private ring: Phaser.GameObjects.Image;
   private tag: Phaser.GameObjects.Text;
   private fxText: Phaser.GameObjects.Text;
+  private relicText: Phaser.GameObjects.Text;
   private anchorRing: Phaser.GameObjects.Image;
   private lastX = NaN;
   private walkClock = 0;
@@ -30,8 +32,9 @@ export class PlayerView {
       .setAlign('center')
       .setShadow(2, 2, '#000', 0, false, true);
     this.fxText = scene.add.text(0, -80, '', TEXT.display(8, '#e879f9')).setOrigin(0.5).setShadow(2, 2, '#000', 0, false, true);
+    this.relicText = scene.add.text(0, -52, '', TEXT.display(6, '#ffd166')).setOrigin(0.5).setShadow(2, 2, '#000', 0, false, true);
     this.anchorRing = scene.add.image(0, -24, TEXTURES.ring).setTint(0xff9f43).setAlpha(0.7).setScale(1.1).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
-    this.root = scene.add.container(0, VIEW.arenaBottom, [this.anchorRing, this.ring, this.sprite, this.tag, this.fxText]).setDepth(20);
+    this.root = scene.add.container(0, VIEW.arenaBottom, [this.anchorRing, this.ring, this.sprite, this.tag, this.fxText, this.relicText]).setDepth(20);
     scene.tweens.add({ targets: this.ring, scale: 1.05, duration: 500, yoyo: true, repeat: -1 });
   }
 
@@ -99,6 +102,8 @@ export class PlayerView {
     else if (loaded) tags.push('ANCHOR');
     if (p.don === 1) tags.push('DOUBLE?');
     if (p.sx > 0) tags.push('x2');
+    const relics = RELIC_KINDS.filter((_, i) => (p.rel & (1 << i)) !== 0).map((k) => RELIC_INFO[k].code).join(' ');
+    setLabel(this.relicText, dead ? '' : relics, '#ffd166');
     setLabel(this.fxText, dead ? '' : fxName ? `${fxName}!` : tags.slice(0, 2).join(' '), fxName ? '#e879f9' : '#ff9f43');
   }
 

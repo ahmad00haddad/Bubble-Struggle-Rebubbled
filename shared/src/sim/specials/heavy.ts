@@ -55,7 +55,7 @@ export const heavy: SpecialDef = {
     tickArmed(host, b, dt, 'heavyFail');
   },
   onHit(host, b, hit): HitResult {
-    return gather(host, b, hit.owner, needed(host), SPECIAL.heavy.window);
+    return gather(host, b, hit.owner, needed(host), SPECIAL.heavy.window * host.windowMul(hit.owner));
   },
 };
 
@@ -81,6 +81,6 @@ export const quad: SpecialDef = {
   },
   onHit(host, b, hit): HitResult {
     const live = host.activePlayers();
-    return gather(host, b, hit.owner, live < 2 ? 1 : Math.min(4, live), SPECIAL.quad.window);
+    return gather(host, b, hit.owner, live < 2 ? 1 : Math.min(4, live), SPECIAL.quad.window * host.windowMul(hit.owner));
   },
 };

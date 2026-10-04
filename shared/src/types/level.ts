@@ -92,6 +92,10 @@ export interface LevelConfig {
   playerSpawnPoints: [number, number];
   platforms: PlatformConfig[];
   spikes?: SpikeStrip[];
+  /** Floor ice patches: Lancers keep sliding on them. */
+  ice?: SpikeStrip[];
+  /** Stage events planned for this level: how many Split Walls and Mirror (reversed controls) moments. */
+  stage?: { wall?: number; mirror?: number };
   bombs?: BombConfig;
   bubbles: BubbleSpawn[];
   powerUps: LevelPowerUps;

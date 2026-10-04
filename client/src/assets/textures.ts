@@ -178,6 +178,7 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
     baton: 0x06b58a,
     flare: 0xff6b35,
     boomerang: 0x5fc400,
+    relic: 0xa855f7,
   };
   const c = colors[type];
   g.fillStyle(shade(c, -0.45), 1);
@@ -315,6 +316,13 @@ function drawPowerUp(g: Phaser.GameObjects.Graphics, type: PowerUpType): void {
       g.lineStyle(3 * k, w, 1);
       g.lineBetween(cx - 7 * k, cy - 5 * k, cx, cy + 5 * k);
       g.lineBetween(cx, cy + 5 * k, cx + 7 * k, cy - 5 * k);
+      break;
+    case 'relic':
+      // An unknown gem: a diamond with a bright core.
+      g.fillTriangle(cx, cy - 9 * k, cx + 7 * k, cy, cx, cy + 9 * k);
+      g.fillTriangle(cx, cy - 9 * k, cx - 7 * k, cy, cx, cy + 9 * k);
+      g.fillStyle(0xa855f7, 1);
+      g.fillCircle(cx, cy, 2.6 * k);
       break;
     case 'chaos':
       // A lightning-tangled question mark: zig-zag bolt with a dot.

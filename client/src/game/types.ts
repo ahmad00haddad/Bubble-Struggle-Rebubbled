@@ -1,4 +1,4 @@
-import type { BubbleSize, LevelConfig, NetSky, LifeState, MatchPhase, PowerUpType, SpecialKind, TickedEvent } from '@orb/shared';
+import type { BubbleSize, LevelConfig, NetSky, NetStage, LifeState, MatchPhase, PowerUpType, SpecialKind, TickedEvent } from '@orb/shared';
 
 export interface ViewPlayer {
   slot: number;
@@ -25,6 +25,8 @@ export interface ViewPlayer {
   boom: number;
   sx: number;
   don: number;
+  /** Relics owned (bitmask over RELIC_KINDS). */
+  rel: number;
   facing: -1 | 1;
 }
 
@@ -40,6 +42,8 @@ export interface ViewState {
   harpoons: { id: number; owner: number; x: number; tipY: number; anchor?: boolean; ttl?: number; wide?: boolean; bm?: 0 | 1 }[];
   /** The sky event in progress, if any. */
   sky?: NetSky;
+  /** The stage event in progress (Split Wall or Mirror), if any. */
+  stage?: NetStage;
   /** Heat as a share of the governor threshold. */
   heat: number;
   /** Baton Crate window, if any. */

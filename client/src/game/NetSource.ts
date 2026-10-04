@@ -44,7 +44,7 @@ export class NetSource implements GameSource {
       latest?.phase === 'playing',
       !!me && me.active && me.life === 'alive',
       me ? speedMulOf(me) : 1,
-      latest ? moveFxFromPlayers(latest.players, s.slot) : undefined,
+      latest ? moveFxFromPlayers(latest.players, s.slot, latest.stage) : undefined,
     );
     this.rt = s.buffer.renderTick(performance.now());
 

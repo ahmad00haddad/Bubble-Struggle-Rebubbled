@@ -1,4 +1,4 @@
-import type { BubbleSize, ChaosKind, GiftEventType, PowerUpType, SkyKind, SpecialEventType, SpecialKind } from '../constants/game';
+import type { BubbleSize, ChaosKind, GiftEventType, PowerUpType, RelicEventType, SkyKind, StageEventType, SpecialEventType, SpecialKind } from '../constants/game';
 
 export type LifeState = 'alive' | 'dead' | 'out';
 
@@ -45,6 +45,21 @@ export interface PlayerState {
   /** Tether: slot of the linked Lancer, else -1. */
   fxP: number;
   /** Reconciliation bookkeeping. */
+  /** Relics owned, as a bitmask over RELIC_KINDS. Kept for the whole run. */
+  rel: number;
+  /** Server-only: sliding speed on ice (px/s) and whether last tick was on ice. */
+  vx: number;
+  iced: boolean;
+  /** Server-only relic bookkeeping. */
+  relayT: number;
+  dashCd: number;
+  dashDir: -1 | 0 | 1;
+  tapDir: -1 | 0 | 1;
+  tapTick: number;
+  /** Quick Draw is ready: no shot fired since the last respawn or level start. */
+  qd: boolean;
+  swUsed: boolean;
+  swBoost: boolean;
   lastSeq: number;
   ticksSinceSeq: number;
 }
@@ -131,6 +146,17 @@ export interface SkyState {
   lanes: number[];
 }
 
+/** The stage event in progress: Split Wall (x = wall position) or Mirror. */
+export interface StageState {
+  kind: 'wall' | 'mirror';
+  phase: 'warn' | 'active';
+  /** Seconds left in the phase. */
+  t: number;
+  x: number;
+  /** Wall: which side (-1 left, 1 right) each Lancer is on, fixed when the wall rises. */
+  sides: Record<number, number>;
+}
+
 export type SimStatus = 'running' | 'cleared' | 'timeup' | 'gameover';
 
 export const MATCH_PHASES = ['countdown', 'playing', 'paused', 'levelComplete', 'timeUp', 'gameOver', 'victory'] as const;
@@ -154,6 +180,9 @@ export type SimEvent =
   | { k: 'gift'; t: GiftEventType; p: number; x: number; y: number; to?: number }
   | { k: 'chaos'; t: ChaosKind | 'fizzle' | 'end'; by: number; to: number }
   | { k: 'sky'; t: 'warn' | 'start' | 'end'; kind: SkyKind; x?: number }
+  | { k: 'relic'; t: RelicEventType; p: number; x: number; y: number; r?: number; to?: number }
+  | { k: 'pinch'; x: number; y: number; a: number; b: number }
+  | { k: 'stage'; t: StageEventType; x?: number }
   | { k: 'phase'; ph: MatchPhase };
 
 export type TickedEvent = SimEvent & { tick: number };

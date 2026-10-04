@@ -8,17 +8,23 @@ import {
   CHAOS,
   CHAOS_KINDS,
   PHYSICS,
+  PINCH,
   PLAYER,
   POWERUP,
   RARE,
+  RELIC,
+  RELIC_KINDS,
   SCORING,
   SKY,
   SPECIAL,
+  STAGE,
+  ICE,
   TICK_DT,
   TICK_RATE,
   WORLD,
   type BubbleSize,
   type PowerUpType,
+  type RelicKind,
   type ChaosKind,
   type GiftEventType,
   type SkyKind,
@@ -34,10 +40,13 @@ import type {
   SimEvent,
   SimStatus,
   SkyState,
+  StageState,
 } from '../types/state';
-import { moveFxOf, movePlayerFx, speedMulOf } from './physics';
-import { advanceBubble, advanceHarpoon, advancePowerUp, anchorStickY, circleRectOverlap, harpoonRect, playerHitbox } from './physics';
+import { moveFxOf, movePlayerFx, speedMulOf, wallBounds } from './physics';
+import { planStage, type StagePlanEntry } from './stage';
+import { advanceBubble, advanceHarpoon, advancePowerUp, anchorStickY, circleRectOverlap, clamp, harpoonRect, playerHitbox } from './physics';
 import { Rng } from './rng';
+import { onIce } from './hazards';
 import { activePlatforms, onSpikes, orbSpeedMul, spawnX } from './hazards';
 import { scaleProfile, type ScaleProfile } from './scaling';
 import { planSky, type SkyPlanEntry } from './director';
@@ -51,6 +60,15 @@ export interface SimOptions {
   /** Chaos pickups allowed (host setting, default on). They also need 2+ Lancers. */
   chaos?: boolean;
 }
+
+/** Special events that mean the team just worked together (they can earn a relic crate). */
+const TEAM_SUCCESS = new Set<string>(['coopDone', 'linkDone', 'priorityDone', 'syncDone', 'heavyDone', 'pincerDone']);
+const RELIC_ALL = (1 << RELIC_KINDS.length) - 1;
+const bitCount = (m: number): number => {
+  let c = 0;
+  for (let x = m; x; x &= x - 1) c++;
+  return c;
+};
 
 function newPlayer(slot: number, active: boolean): PlayerState {
   return {
@@ -82,6 +100,17 @@ function newPlayer(slot: number, active: boolean): PlayerState {
     fxT: 0,
     fxImm: 0,
     fxP: -1,
+    rel: 0,
+    vx: 0,
+    iced: false,
+    relayT: 0,
+    dashCd: 0,
+    dashDir: 0,
+    tapDir: 0,
+    tapTick: -99,
+    qd: true,
+    swUsed: false,
+    swBoost: false,
     lastSeq: 0,
     ticksSinceSeq: 0,
   };
@@ -126,6 +155,16 @@ export class GameSimulation {
   hot = false;
   private skyRng: Rng;
   private chaosRng: Rng;
+  private relicRng: Rng;
+  private stageRng: Rng;
+  /** The stage event in progress (Split Wall or Mirror), if any. */
+  stage: StageState | null = null;
+  private stagePlan: StagePlanEntry[] = [];
+  /** Cleared levels since the last relic crate (starts eligible). */
+  private levelsSinceRelic: number = RELIC.gap;
+  private relicThisLevel = false;
+  /** Children of the last few pops, so a second Lancer's hit on one of them can be a Pinch. */
+  private recentPops: { tick: number; owner: number; ids: [number, number] }[] = [];
   readonly chaosEnabled: boolean;
   private nextBombAt = Infinity;
   private nextId = 1;
@@ -140,6 +179,8 @@ export class GameSimulation {
     this.specialRng = new Rng(this.seed ^ SPECIAL.seedSalt);
     this.skyRng = new Rng(this.seed ^ SKY.seedSalt);
     this.chaosRng = new Rng(this.seed ^ CHAOS.seedSalt);
+    this.relicRng = new Rng(this.seed ^ RELIC.seedSalt);
+    this.stageRng = new Rng(this.seed ^ STAGE.seedSalt);
     this.chaosEnabled = opts.chaos !== false;
     const self = this;
     this.specialHost = {
@@ -162,7 +203,14 @@ export class GameSimulation {
           if (i >= 0) this.popBubble(i, owner);
         }
       },
-      emit: (t, b) => this.emit({ k: 'sp', t, id: b.id, x: Math.round(b.x), y: Math.round(b.y) }),
+      windowMul: (owner) => {
+        const o = this.players[owner];
+        return o && this.hasRelic(o, 'coordinator') ? RELIC.coordinator.windowMul : 1;
+      },
+      emit: (t, b) => {
+        this.emit({ k: 'sp', t, id: b.id, x: Math.round(b.x), y: Math.round(b.y) });
+        if (TEAM_SUCCESS.has(t)) this.tryRelicDrop(b.x, b.y);
+      },
     };
     this.players = opts.activeSlots.map((a, i) => newPlayer(i, a));
     this.loadLevel(0);
@@ -224,6 +272,12 @@ export class GameSimulation {
     this.skyRng = new Rng((this.seed ^ SKY.seedSalt ^ Math.imul(this.levelIndex + 1, 0x85ebca6b)) >>> 0);
     this.skyPlan = planSky(this.level, this.scale, this.skyRng);
     this.chaosRng = new Rng((this.seed ^ CHAOS.seedSalt ^ Math.imul(this.levelIndex + 1, 0xc2b2ae35)) >>> 0);
+    this.relicRng = new Rng((this.seed ^ RELIC.seedSalt ^ Math.imul(this.levelIndex + 1, 0x7feb352d)) >>> 0);
+    this.relicThisLevel = false;
+    this.recentPops = [];
+    this.stageRng = new Rng((this.seed ^ STAGE.seedSalt ^ Math.imul(this.levelIndex + 1, 0x846ca68b)) >>> 0);
+    this.stage = null;
+    this.stagePlan = planStage(this.level, this.level.timeLimit * this.scale.timeMul, this.stageRng);
     for (const p of this.players) {
       p.x = spawnX(this.level, p.slot);
       p.facing = 1;
@@ -239,6 +293,15 @@ export class GameSimulation {
       p.fxT = 0;
       p.fxImm = 0;
       p.fxP = -1;
+      p.vx = 0;
+      p.iced = false;
+      p.qd = true;
+      p.swUsed = false;
+      p.swBoost = false;
+      p.relayT = 0;
+      p.dashCd = 0;
+      p.dashDir = 0;
+      p.tapDir = 0;
       p.hitThisLevel = false;
       if (p.active && p.life === 'dead') p.life = p.lives > 0 ? 'alive' : 'out';
     }
@@ -291,6 +354,11 @@ export class GameSimulation {
   /** A harpoon connected with a tangible orb. The harpoon is spent either way. */
   private hitBubble(index: number, owner: number, x: number): void {
     const b = this.bubbles[index];
+    const pr = b.sp ? undefined : this.recentPops.find((r) => r.owner !== owner && this.tick - r.tick <= PINCH.ticks && r.ids.includes(b.id));
+    if (pr) {
+      this.pinch(pr, b, owner);
+      return;
+    }
     if (b.sp && SPECIAL_DEFS[b.sp].onHit?.(this.specialHost, b, { owner, x }) === 'absorb') return;
     this.popBubble(index, owner);
   }
@@ -336,6 +404,19 @@ export class GameSimulation {
     if (!p) return;
     bits &= INPUT.MASK;
     if (bits & INPUT.SHOOT && !(p.input & INPUT.SHOOT)) p.shootLatch = true;
+    if (this.hasRelic(p, 'dash')) {
+      const rise = bits & ~p.input & (INPUT.LEFT | INPUT.RIGHT);
+      if (rise === INPUT.LEFT || rise === INPUT.RIGHT) {
+        const dir = rise === INPUT.LEFT ? -1 : 1;
+        if (p.tapDir === dir && this.tick - p.tapTick <= RELIC.dash.tapTicks) {
+          p.dashDir = dir;
+          p.tapDir = 0;
+        } else {
+          p.tapDir = dir;
+          p.tapTick = this.tick;
+        }
+      }
+    }
     p.input = bits;
     p.lastSeq = seq;
     p.ticksSinceSeq = 0;
@@ -370,7 +451,9 @@ export class GameSimulation {
         if (p.respawnTimer <= 0) {
           p.life = 'alive';
           p.x = spawnX(this.level, p.slot);
-          p.invuln = PLAYER.invulnAfterRespawn;
+          p.invuln = PLAYER.invulnAfterRespawn + (p.swBoost ? RELIC.secondwind.invuln : 0);
+          p.swBoost = false;
+          p.qd = true;
           this.emit({ k: 'respawn', p: p.slot });
         }
         continue;
@@ -379,7 +462,30 @@ export class GameSimulation {
 
       this.stepFxTimer(p, dt);
       const speedMul = speedMulOf(p);
-      p.x = movePlayerFx(p.x, p.input, speedMul, moveFxOf(p.fx, p.fx > 0 && p.fxP >= 0 ? (this.players[p.fxP]?.x ?? null) : null), dt);
+      const wall = this.stage?.kind === 'wall' && this.stage.phase === 'active' ? this.stage : null;
+      if (wall && wall.sides[p.slot] === undefined) wall.sides[p.slot] = p.x < wall.x ? -1 : 1;
+      const side = wall ? wall.sides[p.slot] : 0;
+      const moveFx = { ...moveFxOf(p.fx, p.fx > 0 && p.fxP >= 0 ? (this.players[p.fxP]?.x ?? null) : null), ...(wall ? wallBounds(wall.x, wall.x + side) : {}) };
+      const before = p.x;
+      let nx = movePlayerFx(p.x, p.input, speedMul, moveFx, dt);
+      if (this.level.ice && onIce(this.level, before)) {
+        // Ice: you keep your speed and change it slowly (Light Feet: almost normally).
+        if (!p.iced) p.vx = (nx - before) / dt;
+        let dir = (p.input & INPUT.RIGHT ? 1 : 0) - (p.input & INPUT.LEFT ? 1 : 0);
+        if (p.fx === CHAOS_KINDS.indexOf('flip') + 1) dir = -dir;
+        const lf = this.hasRelic(p, 'lightfeet');
+        const target = dir * PLAYER.speed * speedMul * ICE.speedMul;
+        const rate = dir !== 0 ? (lf ? ICE.lightFeet.accel : ICE.accel) : lf ? ICE.lightFeet.friction : ICE.friction;
+        const step = rate * dt;
+        p.vx = p.vx < target ? Math.min(target, p.vx + step) : Math.max(target, p.vx - step);
+        nx = clamp(before + p.vx * dt, moveFx.lo ?? PLAYER.width / 2, moveFx.hi ?? WORLD.width - PLAYER.width / 2);
+        if (nx !== before + p.vx * dt) p.vx = 0;
+        p.iced = true;
+      } else {
+        p.vx = 0;
+        p.iced = false;
+      }
+      p.x = nx;
       if (p.input & INPUT.LEFT && !(p.input & INPUT.RIGHT)) p.facing = -1;
       else if (p.input & INPUT.RIGHT && !(p.input & INPUT.LEFT)) p.facing = 1;
 
@@ -395,16 +501,31 @@ export class GameSimulation {
       p.mag = Math.max(0, p.mag - dt);
       p.boom = Math.max(0, p.boom - dt);
       p.sx = Math.max(0, p.sx - dt);
+      p.relayT = Math.max(0, p.relayT - dt);
+      p.dashCd = Math.max(0, p.dashCd - dt);
+      if (p.dashDir !== 0) {
+        const d = p.dashDir;
+        p.dashDir = 0;
+        if (p.dashCd <= 0) {
+          const lim = this.stage?.kind === 'wall' && this.stage.phase === 'active' ? wallBounds(this.stage.x, p.x) : {};
+          p.x = clamp(p.x + d * RELIC.dash.distance, lim.lo ?? PLAYER.width / 2, lim.hi ?? WORLD.width - PLAYER.width / 2);
+          p.invuln = Math.max(p.invuln, RELIC.dash.invuln);
+          p.dashCd = RELIC.dash.cooldown;
+          this.emit({ k: 'relic', t: 'dash', p: p.slot, x: Math.round(p.x), y: WORLD.height - 20 });
+        }
+      }
       if (p.fx === CHAOS_KINDS.indexOf('jam') + 1) p.shootLatch = false; // jammed: the press is lost
       if (p.potato > 0) p.shootLatch = false; // Hot Potato: fast, but you cannot shoot
 
       if (p.shootLatch) {
         p.shootLatch = false;
-        const max = p.dbl > 0 ? HARPOON.doubleMax : HARPOON.baseMax;
+        const max = (p.dbl > 0 ? HARPOON.doubleMax : HARPOON.baseMax) + (p.relayT > 0 ? 1 : 0);
         // A stuck anchor tether does not use up the owner's harpoon slot.
         const mine = this.harpoons.reduce((n, h) => n + (h.owner === p.slot && h.ttl === undefined ? 1 : 0), 0);
-        if (p.cooldown <= 0 && mine < max) {
+        const quick = p.qd && this.hasRelic(p, 'quickdraw');
+        if ((p.cooldown <= 0 || quick) && mine < max) {
           p.cooldown = HARPOON.cooldown;
+          p.qd = false;
           const anchor = p.anc > 0 && !this.level.noAnchor;
           const boom = !anchor && p.boom > 0 && !this.level.noAnchor;
           if (anchor) p.anc = 0;
@@ -413,7 +534,7 @@ export class GameSimulation {
             id: this.nextId++,
             owner: p.slot,
             x: p.x,
-            tipY: WORLD.height - PLAYER.height,
+            tipY: WORLD.height - PLAYER.height - (quick ? RELIC.quickdraw.head : 0),
             ...(anchor ? { anchor: true } : {}),
             ...(boom ? { bm: 0 as const, bh: RARE.boomerangHits } : {}),
             ...(p.wide > 0 ? { wide: true } : {}),
@@ -436,6 +557,7 @@ export class GameSimulation {
 
     // --- Orbs --------------------------------------------------------------
     const slow = this.orbSlow;
+    const guardians = this.players.filter((q) => q.active && q.life === 'alive' && this.hasRelic(q, 'guardian'));
     for (const b of this.bubbles) {
       if (b.fz !== undefined) {
         b.fz -= dt;
@@ -443,7 +565,7 @@ export class GameSimulation {
         delete b.fz;
         this.gift('thaw', -1, b.x, b.y);
       }
-      advanceBubble(b, dt, platforms, orbSpeedMul(this.level, b.fast, this.scale.speedMul, b.rage, b.hot, slow), this.gravMul);
+      advanceBubble(b, dt * this.guardianMul(b, guardians), platforms, orbSpeedMul(this.level, b.fast, this.scale.speedMul, b.rage, b.hot, slow), this.gravMul);
     }
     this.stepHeat(dt);
     this.stepSlow(dt);
@@ -467,7 +589,8 @@ export class GameSimulation {
           else {
             // Anchor: stick where the tether stopped and keep working for a few seconds.
             h.tipY = anchorStickY(h.x, h.tipY, platforms, w);
-            h.ttl = ANCHOR.stickSeconds;
+            const holder = this.players[h.owner];
+            h.ttl = ANCHOR.stickSeconds * (holder && this.hasRelic(holder, 'anchor') ? RELIC.anchor.mul : 1);
             h.cd = 0;
             this.emit({ k: 'anchor', p: h.owner, x: Math.round(h.x), y: Math.round(h.tipY) });
           }
@@ -535,6 +658,14 @@ export class GameSimulation {
       if (u.grounded && bottom < WORLD.height - 0.5 && !platforms.some((p) => Math.abs(p.y - bottom) < 1 && u.x >= p.x && u.x <= p.x + p.w)) {
         u.grounded = false;
       }
+      for (const q of this.players) {
+        if (!q.active || q.life !== 'alive' || !this.hasRelic(q, 'magnet')) continue;
+        const dx = q.x - u.x;
+        if (Math.abs(dx) < RELIC.magnet.range && Math.abs(dx) > 2) {
+          u.x += Math.sign(dx) * Math.min(Math.abs(dx), RELIC.magnet.pull * dt);
+          break;
+        }
+      }
       advancePowerUp(u, dt, platforms);
       u.life -= dt;
       if (u.life <= 0) continue;
@@ -554,6 +685,9 @@ export class GameSimulation {
     }
     this.powerups = keep;
 
+    // --- Stage events (Split Wall, Mirror) -----------------------------------
+    this.stepStage(dt);
+
     // --- Sky events ----------------------------------------------------------
     this.stepSky(dt);
     this.updateHot();
@@ -566,6 +700,7 @@ export class GameSimulation {
     }
     if (this.bubbles.length === 0) {
       this.status = 'cleared';
+      this.levelsSinceRelic++;
       const secs = Math.max(0, Math.floor(this.timeLeftTicks / TICK_RATE));
       const bonus = this.players.map((p) => {
         if (!p.active) return 0;
@@ -822,6 +957,12 @@ export class GameSimulation {
     if (p.lives > 0) {
       p.life = 'dead';
       p.respawnTimer = PLAYER.respawnDelay;
+      if (this.hasRelic(p, 'secondwind') && !p.swUsed) {
+        p.swUsed = true;
+        p.swBoost = true;
+        p.respawnTimer = Math.max(0.5, PLAYER.respawnDelay - RELIC.secondwind.respawn);
+        this.emit({ k: 'relic', t: 'wake', p: p.slot, x: Math.round(p.x), y: WORLD.height - 20 });
+      }
     } else {
       p.life = 'out';
     }
@@ -831,7 +972,13 @@ export class GameSimulation {
     // (and stay alive on the way) before it fades; otherwise they sit out until the level ends.
     if (p.life === 'out' && this.specialHost.activePlayers() >= 1 && this.players.some((q) => q.active && q.slot !== p.slot && q.life === 'alive')) {
       this.spawnPowerUp('flare', p.x, 20);
+      if (this.players.some((q) => q.slot !== p.slot && q.active && q.life === 'alive' && this.hasRelic(q, 'lifeline'))) this.powerups[this.powerups.length - 1].life = RELIC.lifeline.beaconLife;
       this.coopStats.rescueOffered++;
+    }
+    for (const q of this.players) {
+      if (q.slot === p.slot || !q.active || q.life !== 'alive' || !this.hasRelic(q, 'lifeline')) continue;
+      q.speed = Math.max(q.speed, RELIC.lifeline.speedSeconds);
+      this.emit({ k: 'relic', t: 'lifeline', p: q.slot, x: Math.round(q.x), y: WORLD.height - 20, to: p.slot });
     }
   }
 
@@ -842,6 +989,9 @@ export class GameSimulation {
     const pts = BUBBLE_SIZES[b.size].points;
     const scorer = this.players[by];
     if (scorer) scorer.score += pts * (scorer.sx > 0 ? 2 : 1);
+    for (const q of this.players) {
+      if (q.slot !== by && q.active && q.life === 'alive' && this.hasRelic(q, 'relay')) q.relayT = RELIC.relay.seconds;
+    }
     if (scorer && this.baton && by !== this.baton.owner && scorer.life === 'alive') {
       // Baton Crate: the first teammate to pop an orb shares the shield.
       scorer.shield = Math.max(scorer.shield, POWERUP.durations.shield);
@@ -860,10 +1010,16 @@ export class GameSimulation {
       // While the team runs hot, new children start a little faster for a few seconds.
       const h = (this.hot ? HEAT.boostMul : 1) * this.orbSlow;
       const heated = this.hot ? { hot: true, ht: HEAT.boostSeconds } : {};
+      const idA = this.nextId++;
+      const idB = this.nextId++;
       this.bubbles.push(
-        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: -vx * f * h, vy: vy * f * h, ...(b.fast ? { fast: true } : {}), ...heated },
-        { id: this.nextId++, size: child, x: b.x, y: b.y, vx: vx * f * h, vy: vy * f * h, ...(b.fast ? { fast: true } : {}), ...heated },
+        { id: idA, size: child, x: b.x, y: b.y, vx: -vx * f * h, vy: vy * f * h, ...(b.fast ? { fast: true } : {}), ...heated },
+        { id: idB, size: child, x: b.x, y: b.y, vx: vx * f * h, vy: vy * f * h, ...(b.fast ? { fast: true } : {}), ...heated },
       );
+      if (b.size >= PINCH.minSize) {
+        this.recentPops = this.recentPops.filter((r) => this.tick - r.tick <= PINCH.ticks);
+        this.recentPops.push({ tick: this.tick, owner: by, ids: [idA, idB] });
+      }
     }
 
     const pu = this.level.powerUps;
@@ -887,8 +1043,164 @@ export class GameSimulation {
     this.emit({ k: 'drop', type, x: Math.round(u.x), y: Math.round(u.y) });
   }
 
+  // ---------------------------------------------------------------------------
+  // Stage events
+  // ---------------------------------------------------------------------------
+
+  private stepStage(dt: number): void {
+    const st = this.stage;
+    if (st) {
+      st.t -= dt;
+      if (st.t > 0) return;
+      if (st.phase === 'warn') {
+        if (st.kind === 'wall') this.raiseWall(st);
+        else this.startMirror(st);
+      } else {
+        this.emit({ k: 'stage', t: st.kind === 'wall' ? 'wallEnd' : 'mirrorEnd' });
+        this.stage = null;
+      }
+      return;
+    }
+    const next = this.stagePlan[0];
+    if (!next) return;
+    const elapsed = this.levelTicks * TICK_DT;
+    if (elapsed < next.at) return;
+    if (elapsed > this.level.timeLimit * this.scale.timeMul * STAGE.guard) {
+      this.stagePlan = [];
+      return;
+    }
+    if (next.kind === 'wall') {
+      const x = this.pickWallX();
+      if (x === null) return; // not the right moment: try again on a later tick
+      this.stage = { kind: 'wall', phase: 'warn', t: STAGE.warn, x, sides: {} };
+      this.emit({ k: 'stage', t: 'wallWarn', x: Math.round(x) });
+    } else {
+      this.stage = { kind: 'mirror', phase: 'warn', t: STAGE.warn, x: 0, sides: {} };
+      this.emit({ k: 'stage', t: 'mirrorWarn' });
+    }
+    this.stagePlan.shift();
+  }
+
+  /** Where a wall could rise: between the outer Lancers, on empty floor, with enough orbs in play. Null if not now. */
+  private pickWallX(): number | null {
+    const live = this.players.filter((q) => q.active && q.life === 'alive');
+    if (live.length < 2 || this.bubbles.length < STAGE.wall.minOrbs) return null;
+    const xs = live.map((q) => q.x).sort((a, b) => a - b);
+    const lo = xs[0];
+    const hi = xs[xs.length - 1];
+    if (hi - lo < STAGE.wall.minSpread) return null;
+    const clear = STAGE.wall.thickness / 2 + PLAYER.width / 2 + 14;
+    const mid = (lo + hi) / 2;
+    for (const off of [0, -24, 24, -48, 48]) {
+      const x = mid + off;
+      if (x < lo + clear || x > hi - clear) continue;
+      if (this.powerups.some((u) => u.grounded && Math.abs(u.x - x) < 20)) continue;
+      if (live.some((q) => Math.abs(q.x - x) < clear)) continue;
+      return x;
+    }
+    return null;
+  }
+
+  private raiseWall(st: StageState): void {
+    st.phase = 'active';
+    st.t = STAGE.wall.seconds;
+    st.sides = {};
+    const edge = STAGE.wall.thickness / 2 + PLAYER.width / 2;
+    for (const q of this.players) {
+      if (!q.active || q.life !== 'alive') continue;
+      const side = q.x < st.x ? -1 : 1;
+      st.sides[q.slot] = side;
+      if (Math.abs(q.x - st.x) < edge) q.x = st.x + side * edge;
+    }
+    this.emit({ k: 'stage', t: 'wallStart', x: Math.round(st.x) });
+  }
+
+  private startMirror(st: StageState): void {
+    st.phase = 'active';
+    st.t = STAGE.mirror.seconds;
+    const flip = CHAOS_KINDS.indexOf('flip') + 1;
+    for (const q of this.players) {
+      if (!q.active || q.life !== 'alive' || q.fx !== 0) continue;
+      q.fx = flip;
+      q.fxT = STAGE.mirror.seconds * (this.hasRelic(q, 'steadyhand') ? STAGE.mirror.steady : 1);
+      q.fxP = -1;
+    }
+    this.emit({ k: 'stage', t: 'mirrorStart' });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Relics and Pinch
+  // ---------------------------------------------------------------------------
+
+  hasRelic(p: PlayerState, kind: RelicKind): boolean {
+    return (p.rel & (1 << RELIC_KINDS.indexOf(kind))) !== 0;
+  }
+
+  /** Time factor for an orb near a Guardian (its whole motion runs slower; no stacking). */
+  private guardianMul(b: BubbleState, guardians: readonly PlayerState[]): number {
+    for (const q of guardians) {
+      if (Math.hypot(b.x - q.x, b.y - (WORLD.height - PLAYER.height / 2)) < RELIC.guardian.radius + BUBBLE_SIZES[b.size].radius) return RELIC.guardian.slow;
+    }
+    return 1;
+  }
+
+  /** Team Player: the nearest teammate gets a short copy of a basic pickup. */
+  private sharePickup(p: PlayerState, type: PowerUpType): void {
+    let mate: PlayerState | undefined;
+    for (const q of this.players) {
+      if (q.slot === p.slot || !q.active || q.life !== 'alive' || Math.abs(q.x - p.x) > RELIC.teamplayer.range) continue;
+      if (!mate || Math.abs(q.x - p.x) < Math.abs(mate.x - p.x)) mate = q;
+    }
+    if (!mate) return;
+    if (type === 'shield') mate.shield = Math.max(mate.shield, RELIC.teamplayer.shield);
+    else if (type === 'speedBoost') mate.speed = Math.max(mate.speed, RELIC.teamplayer.speed);
+    else mate.dbl = Math.max(mate.dbl, RELIC.teamplayer.dbl);
+    this.emit({ k: 'relic', t: 'share', p: p.slot, x: Math.round(mate.x), y: WORLD.height - 20, to: mate.slot });
+  }
+
+  /** The Lancer who picks up an Unknown Relic gets a random relic they do not have. */
+  private grantRelic(p: PlayerState): void {
+    const open = RELIC_KINDS.map((_, i) => i).filter((i) => (p.rel & (1 << i)) === 0);
+    const y = WORLD.height - 20;
+    if (open.length === 0 || bitCount(p.rel) >= RELIC.maxPerPlayer) {
+      p.score += 300;
+      this.emit({ k: 'relic', t: 'full', p: p.slot, x: Math.round(p.x), y });
+      return;
+    }
+    const i = open[Math.floor(this.relicRng.next() * open.length)];
+    p.rel |= 1 << i;
+    this.emit({ k: 'relic', t: 'get', p: p.slot, x: Math.round(p.x), y, r: i });
+  }
+
+  /** A cooperative success may drop an Unknown Relic crate: at most one per level and one per few levels. */
+  private tryRelicDrop(x: number, y: number): void {
+    if (this.relicThisLevel || this.levelsSinceRelic < RELIC.gap || this.specialHost.activePlayers() < 2) return;
+    if (!this.players.some((q) => q.active && q.life !== 'out' && q.rel !== RELIC_ALL && bitCount(q.rel) < RELIC.maxPerPlayer)) return;
+    if (this.relicRng.next() >= RELIC.chance) return;
+    this.relicThisLevel = true;
+    this.levelsSinceRelic = 0;
+    this.spawnPowerUp('relic', x, Math.min(y, 300));
+    this.powerups[this.powerups.length - 1].life = RELIC.crateLife;
+  }
+
+  /** Two different Lancers hit the two halves of one pop within a few ticks: both halves vanish. */
+  private pinch(pr: { owner: number; ids: [number, number] }, b: BubbleState, owner: number): void {
+    const x = Math.round(b.x);
+    const y = Math.round(b.y);
+    this.bubbles = this.bubbles.filter((o) => !pr.ids.includes(o.id));
+    this.recentPops = this.recentPops.filter((r) => r !== pr);
+    for (const slot of [pr.owner, owner]) {
+      const q = this.players[slot];
+      if (q) q.score += PINCH.bonus;
+    }
+    this.coopStats.pinches++;
+    this.emit({ k: 'pinch', x, y, a: pr.owner, b: owner });
+    this.tryRelicDrop(x, y);
+  }
+
   private applyPowerUp(p: PlayerState, type: PowerUpType): void {
     p.score += SCORING.pickup;
+    if (this.hasRelic(p, 'teamplayer') && (type === 'shield' || type === 'speedBoost' || type === 'doubleHarpoon')) this.sharePickup(p, type);
     switch (type) {
       case 'shield':
         p.shield = POWERUP.durations.shield;
@@ -906,7 +1218,10 @@ export class GameSimulation {
         p.speed = POWERUP.durations.speedBoost;
         break;
       case 'anchor':
-        p.anc = ANCHOR.chargeSeconds;
+        p.anc = ANCHOR.chargeSeconds * (this.hasRelic(p, 'anchor') ? RELIC.anchor.mul : 1);
+        break;
+      case 'relic':
+        this.grantRelic(p);
         break;
       case 'chaos':
         this.fireChaos(p);

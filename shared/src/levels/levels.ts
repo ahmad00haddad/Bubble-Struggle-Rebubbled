@@ -47,6 +47,7 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     powerUps: basicDrops(0.15),
     difficulty: { rating: 2, bubbleSpeed: 0.95 },
+    stage: { wall: 1 },
     theme: { sky: [0x14284a, 0x2c6e8f], accent: 0x8cf0ff, orb: 0x7d7bff },
   },
   {
@@ -66,6 +67,7 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     powerUps: basicDrops(0.15, { placed: [{ type: 'shield', x: 480, y: 40, delay: 10 }] }),
     difficulty: { rating: 3, bubbleSpeed: 1.0 },
+    ice: [{ x: 330, w: 300 }],
     theme: { sky: [0x1d2b33, 0x2f6f5e], accent: 0xb6f25c, orb: 0xffc145 },
   },
   {
@@ -88,6 +90,7 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     powerUps: basicDrops(0.14),
     difficulty: { rating: 4, bubbleSpeed: 1.05 },
+    stage: { mirror: 1 },
     theme: { sky: [0x2a1640, 0x6b2f6b], accent: 0xff8ad8, orb: 0x5cf2a0 },
   },
   {
@@ -109,6 +112,10 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     powerUps: basicDrops(0.13, { placed: [{ type: 'doubleHarpoon', x: 480, y: 120, delay: 12 }] }),
     difficulty: { rating: 5, bubbleSpeed: 1.05 },
+    ice: [
+      { x: 60, w: 140 },
+      { x: 760, w: 140 },
+    ],
     theme: { sky: [0x10243a, 0x1f5a7a], accent: 0xffd166, orb: 0xef476f },
   },
   {
@@ -133,6 +140,7 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     powerUps: basicDrops(0.13),
     difficulty: { rating: 6, bubbleSpeed: 1.1 },
+    stage: { wall: 2 },
     theme: { sky: [0x331a14, 0x8a3b24], accent: 0xffb347, orb: 0x44c2fd },
   },
   {
@@ -154,6 +162,8 @@ const ALL_LEVELS: LevelConfig[] = [
       placed: [
         { type: 'extraTime', x: 480, y: 60, delay: 30 },
         { type: 'anchor', x: 480, y: 60, delay: 14 },
+        { type: 'shield', x: 140, y: 60, delay: 20 },
+        { type: 'doubleHarpoon', x: 820, y: 60, delay: 20 },
       ],
     }),
     difficulty: { rating: 7, bubbleSpeed: 1.1 },
@@ -185,6 +195,8 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     powerUps: basicDrops(0.1),
     difficulty: { rating: 8, bubbleSpeed: 1.15 },
+    stage: { mirror: 1 },
+    sky: { budget: 3, pool: { hail: 5, comet: 2, wobble: 2 } },
     theme: { sky: [0x1b1f3b, 0x4a4e8f], accent: 0xe0e7ff, orb: 0x4cc9f0 },
   },
   {
@@ -211,6 +223,8 @@ const ALL_LEVELS: LevelConfig[] = [
     ],
     powerUps: basicDrops(0.14, { placed: [{ type: 'shield', x: 480, y: 60, delay: 20 }] }),
     difficulty: { rating: 9, bubbleSpeed: 1.15 },
+    ice: [{ x: 410, w: 140 }],
+    stage: { wall: 1 },
     theme: { sky: [0x1a1033, 0x502a6e], accent: 0xc77dff, orb: 0x80ffdb },
   },
   {
@@ -243,6 +257,11 @@ const ALL_LEVELS: LevelConfig[] = [
       ],
     }),
     difficulty: { rating: 10, bubbleSpeed: 1.2 },
+    ice: [
+      { x: 230, w: 100 },
+      { x: 630, w: 100 },
+    ],
+    stage: { wall: 1, mirror: 1 },
     noAnchor: true,
     sky: { budget: 2, pool: { comet: 3, hail: 2, gift: 3 } },
     theme: { sky: [0x240b1e, 0x7a1f3d], accent: 0xffe066, orb: 0xff5d8f },

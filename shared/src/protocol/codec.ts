@@ -1,6 +1,6 @@
 import { POWERUP_TYPES, SKY_KINDS, SPECIAL_KINDS, type SkyKind, type BubbleSize, type PowerUpType, type SpecialKind } from '../constants/game';
 import type { Match } from '../sim/Match';
-import { moveFxOf, type MoveFx } from '../sim/physics';
+import { moveFxOf, wallBounds, type MoveFx } from '../sim/physics';
 import type { BubbleState, HarpoonState } from '../types/state';
 import { MATCH_PHASES, type LifeState, type MatchPhase, type TickedEvent } from '../types/state';
 import type { SnapMessage } from './messages';
@@ -39,6 +39,8 @@ export interface NetPlayer {
   boom: number;
   sx: number;
   don: number;
+  /** Relics owned (bitmask over RELIC_KINDS). */
+  rel: number;
   lastSeq: number;
   ticksSince: number;
   facing: -1 | 1;
@@ -104,6 +106,14 @@ export interface NetSky {
   a: number;
   lanes: number[];
 }
+export interface NetStage {
+  kind: 'wall' | 'mirror';
+  phase: 'warn' | 'active';
+  /** Seconds left in this phase. */
+  t: number;
+  /** Wall x (0 for Mirror). */
+  x: number;
+}
 export interface Snapshot {
   tick: number;
   phase: MatchPhase;
@@ -119,6 +129,8 @@ export interface Snapshot {
   /** Seconds of Slow Orbs left (0 = normal speed). */
   slow: number;
   sky?: NetSky;
+  /** Stage event in progress: Split Wall or Mirror. */
+  stage?: NetStage;
   /** Heat as a share of the governor threshold (0 when cold, 1 = governor on). */
   heat: number;
   /** Baton Crate: who holds it and seconds left for a teammate to pop an orb. */
@@ -204,11 +216,13 @@ export function encodeSnapshot(match: Match, events: TickedEvent[]): SnapMessage
   };
   // Rare-crate timers ride at the end of a player row, only while any is running.
   sim.players.forEach((p, i) => {
-    if (p.wide || p.boots || p.potato || p.mag || p.boom || p.sx || p.don) msg.p[i].push(t10(p.wide), t10(p.boots), t10(p.potato), t10(p.mag), t10(p.boom), t10(p.sx), p.don);
+    if (p.wide || p.boots || p.potato || p.mag || p.boom || p.sx || p.don || p.rel) msg.p[i].push(t10(p.wide), t10(p.boots), t10(p.potato), t10(p.mag), t10(p.boom), t10(p.sx), p.don);
+    if (p.rel) msg.p[i].push(p.rel);
   });
   if (sim.slowT > 0) msg.sl = t10(sim.slowT);
   if (sim.bombs.length) msg.x = sim.bombs.map((b) => (b.r ? [b.id, r1(b.x), r1(b.y), t10(b.fuse), b.r] : [b.id, r1(b.x), r1(b.y), t10(b.fuse)]));
   if (sim.sky) msg.s = [SKY_KINDS.indexOf(sim.sky.kind), sim.sky.phase === 'active' ? 1 : 0, t10(sim.sky.t), sim.sky.a, ...sim.sky.lanes];
+  if (sim.stage) msg.w = [sim.stage.kind === 'wall' ? 0 : 1, sim.stage.phase === 'active' ? 1 : 0, t10(sim.stage.t), r1(sim.stage.x)];
   if (sim.heat >= 0.05) msg.hl = Math.round(sim.heatRatio * 100);
   if (sim.baton) msg.bt = [sim.baton.owner, t10(sim.baton.t)];
   if (events.length) msg.e = events;
@@ -248,6 +262,7 @@ export function decodeSnapshot(m: SnapMessage): Snapshot {
       boom: (a[20] ?? 0) / 10,
       sx: (a[21] ?? 0) / 10,
       don: a[22] ?? 0,
+      rel: a[23] ?? 0,
     })),
     bubbles: m.b.map(decodeBubble),
     harpoons: m.h.map(decodeHarpoon),
@@ -255,6 +270,7 @@ export function decodeSnapshot(m: SnapMessage): Snapshot {
     bombs: (m.x ?? []).map((a) => ({ id: a[0], x: a[1], y: a[2], fuse: a[3] / 10, ...(a[4] ? { r: a[4] } : {}) })),
     slow: (m.sl ?? 0) / 10,
     ...(m.s ? { sky: { kind: SKY_KINDS[m.s[0]], phase: m.s[1] ? ('active' as const) : ('warn' as const), t: m.s[2] / 10, a: m.s[3], lanes: m.s.slice(4) } } : {}),
+    ...(m.w ? { stage: { kind: m.w[0] ? ('mirror' as const) : ('wall' as const), phase: m.w[1] ? ('active' as const) : ('warn' as const), t: m.w[2] / 10, x: m.w[3] } } : {}),
     heat: (m.hl ?? 0) / 100,
     ...(m.bt ? { baton: { owner: m.bt[0], t: m.bt[1] / 10 } } : {}),
     events: m.e ?? [],
@@ -262,10 +278,12 @@ export function decodeSnapshot(m: SnapMessage): Snapshot {
 }
 
 /** Movement effect on `slot` from a decoded snapshot (for client prediction). */
-export function moveFxFromPlayers(players: readonly NetPlayer[], slot: number): MoveFx {
+export function moveFxFromPlayers(players: readonly NetPlayer[], slot: number, stage?: NetStage): MoveFx {
   const me = players[slot];
-  if (!me || me.fx === 0) return {};
-  return moveFxOf(me.fx, me.fxP >= 0 ? (players[me.fxP]?.x ?? null) : null);
+  if (!me) return {};
+  const wall = stage?.kind === 'wall' && stage.phase === 'active' ? wallBounds(stage.x, me.x) : {};
+  if (me.fx === 0) return wall;
+  return { ...moveFxOf(me.fx, me.fxP >= 0 ? (players[me.fxP]?.x ?? null) : null), ...wall };
 }
 
 /** Build the same decoded view directly from a local match (solo mode). */
@@ -300,6 +318,7 @@ export function snapshotFromMatch(match: Match, events: TickedEvent[] = []): Sna
       boom: p.boom,
       sx: p.sx,
       don: p.don,
+      rel: p.rel,
       lastSeq: p.lastSeq,
       ticksSince: p.ticksSinceSeq,
       facing: p.facing,
@@ -310,6 +329,7 @@ export function snapshotFromMatch(match: Match, events: TickedEvent[] = []): Sna
     bombs: sim.bombs.map((b) => ({ id: b.id, x: b.x, y: b.y, fuse: b.fuse, ...(b.r ? { r: b.r } : {}) })),
     slow: sim.slowT,
     ...(sim.sky ? { sky: { ...sim.sky, lanes: [...sim.sky.lanes] } } : {}),
+    ...(sim.stage ? { stage: { kind: sim.stage.kind, phase: sim.stage.phase, t: sim.stage.t, x: sim.stage.x } } : {}),
     heat: sim.heatRatio,
     ...(sim.baton ? { baton: { owner: sim.baton.owner, t: sim.baton.t } } : {}),
     events,

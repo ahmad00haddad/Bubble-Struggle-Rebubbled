@@ -20,7 +20,7 @@ export const sync: SpecialDef = {
   onHit(host, b, hit) {
     const alone = host.activePlayers() < 2;
     if (!isArmed(b)) {
-      arm(b, alone ? SPECIAL.sync.windowSolo : SPECIAL.sync.window, bit(hit.owner));
+      arm(b, (alone ? SPECIAL.sync.windowSolo : SPECIAL.sync.window) * host.windowMul(hit.owner), bit(hit.owner));
       host.emit('syncArm', b);
       return 'absorb';
     }

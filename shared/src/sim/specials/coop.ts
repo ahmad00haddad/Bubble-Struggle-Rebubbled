@@ -45,7 +45,7 @@ export const coop: SpecialDef = {
       return 'pop';
     }
     if (!isArmed(b)) {
-      arm(b, coopWindow(need), bit(hit.owner));
+      arm(b, coopWindow(need) * host.windowMul(hit.owner), bit(hit.owner));
       stats.hits++;
       host.emit('coopHit', b);
       return 'absorb';

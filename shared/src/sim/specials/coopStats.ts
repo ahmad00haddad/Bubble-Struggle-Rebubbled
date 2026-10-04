@@ -27,12 +27,14 @@ export interface CoopStats extends CoopKindStats {
   rescueOffered: number;
   /** Downed Lancers brought back by a Rescue Flare. */
   rescued: number;
+  /** Orbs removed whole by two Lancers hitting them together. */
+  pinches: number;
   byKind: Record<CoopKind, CoopKindStats>;
 }
 
 export function newCoopStats(): CoopStats {
   const k = (): CoopKindStats => ({ spawned: 0, completed: 0, failed: 0 });
-  return { spawned: 0, completed: 0, failed: 0, hits: 0, repeatHits: 0, participants: 0, armedTicks: 0, rescueOffered: 0, rescued: 0, byKind: { coop: k(), link: k(), priority: k() } };
+  return { spawned: 0, completed: 0, failed: 0, hits: 0, repeatHits: 0, participants: 0, armedTicks: 0, rescueOffered: 0, rescued: 0, pinches: 0, byKind: { coop: k(), link: k(), priority: k() } };
 }
 
 export function countCoop(s: CoopStats, kind: CoopKind, what: 'spawned' | 'completed' | 'failed'): void {

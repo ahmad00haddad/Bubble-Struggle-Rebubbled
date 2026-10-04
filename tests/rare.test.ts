@@ -46,7 +46,7 @@ function shootAt(s: GameSimulation, owner: number, id: number, dx = 0): void {
 describe('rare crates: setup', () => {
   it('every new crate type exists and is appended after the old ones (snapshot format)', () => {
     expect(POWERUP_TYPES.slice(0, 7)).toEqual(['shield', 'extraLife', 'extraTime', 'doubleHarpoon', 'speedBoost', 'anchor', 'chaos']);
-    expect(POWERUP_TYPES).toHaveLength(21);
+    expect(POWERUP_TYPES).toHaveLength(22);
   });
 
   it('they join every level drop pool, including solo, but team crates need a team', () => {

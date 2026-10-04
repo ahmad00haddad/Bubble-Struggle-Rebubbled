@@ -53,7 +53,7 @@ export const link: SpecialDef = {
     if (isArmed(b)) return; // the partner on the clock: finishing it is handled in onHit
     const partner = b.lk === undefined ? undefined : host.bubbleById(b.lk);
     if (!partner || partner.sp !== 'link' || isArmed(partner)) return;
-    arm(partner, SPECIAL.link.window, bit(by));
+    arm(partner, SPECIAL.link.window * host.windowMul(by), bit(by));
     host.coopStats.hits++;
     host.emit('linkStart', partner);
   },

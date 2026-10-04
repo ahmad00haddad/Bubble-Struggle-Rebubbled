@@ -61,8 +61,9 @@ export class HowToScene extends Phaser.Scene {
     // A strip of icons; the full guide has the names and what each one does.
     POWERUP_TYPES.forEach((t, i) => this.add.image(X(556 + (i % 11) * 32), 282 + Math.floor(i / 11) * 34, TEXTURES.powerUp(t)).setScale(1 / TEX_SCALE));
     put(540, 334, ar ? HOWTO_AR.crates : 'Crates fall now and then. Some help, some are\ngambles, a few are traps — you choose.', 14, COLORS.text, 'body', 350);
-    const guideLabel = ar ? HOWTO_AR.guide : 'POWER-UP GUIDE';
-    const guide = new Button(this, X(720), 394, guideLabel, () => goTo(this, SCENES.powerups), ar ? { width: 280, height: 36, fontSize: 17, fontFamily: AR_FONT } : { width: 280, height: 36, fontSize: 11 });
+    const guideLabel = ar ? HOWTO_AR.guide : 'POWERS';
+    const guide = new Button(this, X(630), 394, guideLabel, () => goTo(this, SCENES.powerups), ar ? { width: 170, height: 36, fontSize: 16, fontFamily: AR_FONT } : { width: 170, height: 36, fontSize: 9 });
+    const relics = new Button(this, X(815), 394, ar ? HOWTO_AR.relics : 'RELICS', () => goTo(this, SCENES.relics), ar ? { width: 170, height: 36, fontSize: 16, fontFamily: AR_FONT } : { width: 170, height: 36, fontSize: 9 });
 
     put(left, 372, ar ? HOWTO_AR.specials : 'SPECIAL ORBS', 14, COLORS.accentCss, 'display');
     const specials = ar
@@ -80,6 +81,6 @@ export class HowToScene extends Phaser.Scene {
 
     const back = new Button(this, VIEW.width / 2, 576, ar ? HOWTO_AR.back : 'BACK', () => goTo(this, SCENES.menu), ar ? { width: 220, height: 40, fontSize: 18, fontFamily: AR_FONT } : { width: 220, height: 40 });
     const toggle = langToggle(this);
-    new ButtonGroup(this, [back, guide, toggle], { onBack: () => goTo(this, SCENES.menu) }).focus(0);
+    new ButtonGroup(this, [back, guide, relics, toggle], { onBack: () => goTo(this, SCENES.menu) }).focus(0);
   }
 }

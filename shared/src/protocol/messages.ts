@@ -169,6 +169,8 @@ export interface SnapMessage {
   s?: number[];
   /** Slow Orbs: seconds left x10 (omitted when off) */
   sl?: number;
+  /** Stage event: [kind(0 wall|1 mirror), phase(0 warn|1 active), t10, wall x] (omitted when none) */
+  w?: number[];
   /** Heat as a percentage of the governor threshold (omitted when cold) */
   hl?: number;
   /** Baton Crate window: [owner slot, seconds left x10] (omitted when none) */

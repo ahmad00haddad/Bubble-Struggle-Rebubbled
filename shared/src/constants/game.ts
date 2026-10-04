@@ -6,7 +6,7 @@
 export const GAME_NAME = 'ORB LANCERS';
 
 /** Shown on the main menu. Bump it with every change that gets deployed (see CLAUDE.md). */
-export const GAME_VERSION = '1.7';
+export const GAME_VERSION = '1.8';
 
 /** Fixed simulation rate (server and solo). */
 export const TICK_RATE = 30;
@@ -179,6 +179,7 @@ export const POWERUP_TYPES = [
   'baton',
   'flare',
   'boomerang',
+  'relic',
 ] as const;
 export type PowerUpType = (typeof POWERUP_TYPES)[number];
 
@@ -394,6 +395,81 @@ export const CHAOS = {
   /** Weight of the chaos pickup in drop pools and gift crates (multiplied by ScaleProfile.chaosRate). */
   dropWeight: 1,
 } as const;
+
+/**
+ * Relics: permanent traits a Lancer keeps for the rest of the run. A team earns an Unknown Relic crate by
+ * completing a cooperative target; whoever picks it up gets a random relic they do not have yet.
+ * Order is part of the snapshot format (bitmask): append only. Utility over raw power.
+ */
+export const RELIC_KINDS = ['magnet', 'quickdraw', 'anchor', 'dash', 'guardian', 'relay', 'coordinator', 'lifeline', 'teamplayer', 'secondwind', 'lightfeet', 'steadyhand'] as const;
+export type RelicKind = (typeof RELIC_KINDS)[number];
+export type RelicEventType = 'get' | 'full' | 'dash' | 'share' | 'lifeline' | 'wake';
+
+export const RELIC = {
+  /** Mixed into the match seed so relics never consume another RNG stream. */
+  seedSalt: 0x68e31da4,
+  /** Most relics one Lancer can hold. */
+  maxPerPlayer: 4,
+  /** Cleared levels needed between two relic crates. */
+  gap: 2,
+  /** Chance that a team success drops the crate while one is allowed. */
+  chance: 0.7,
+  crateLife: 14,
+  /** Magnet Hand: crates within this many px drift toward you at this speed (px/s). */
+  magnet: { range: 120, pull: 70 },
+  /** Quick Draw: the first tether after a respawn or level start has no cooldown and starts this many px higher. */
+  quickdraw: { head: 140 },
+  /** Anchor Master: anchor charge and stick time factor. */
+  anchor: { mul: 1.5 },
+  /** Dash: double-tap a direction. Distance (px), cooldown (s), invulnerability (s), tap window (ticks). */
+  dash: { distance: 110, cooldown: 4, invuln: 0.3, tapTicks: 8 },
+  /** Guardian: orbs this close (px) to you move at this speed factor. */
+  guardian: { radius: 130, slow: 0.8 },
+  /** Relay: seconds you may use one extra tether after a teammate pops an orb. */
+  relay: { seconds: 1.5 },
+  /** Coordinator: window factor for cooperative targets you start. */
+  coordinator: { windowMul: 1.5 },
+  /** Lifeline: speed burst (s) when a teammate goes down, and how long a rescue beacon lasts. */
+  lifeline: { speedSeconds: 3, beaconLife: 16 },
+  /** Team Player: a teammate this close shares a short copy of your pickup (seconds). */
+  teamplayer: { range: 170, shield: 1, speed: 1.5, dbl: 1.5 },
+  /** Second Wind: once per level, a faster respawn and extra protection (seconds). */
+  secondwind: { respawn: 1, invuln: 1 },
+} as const;
+
+/** Ice patches: you keep sliding. Speeds in px/s, rates in px/s^2. Light Feet barely slides. */
+export const ICE = {
+  speedMul: 1.12,
+  accel: 650,
+  friction: 380,
+  lightFeet: { accel: 1500, friction: 1100 },
+} as const;
+
+/**
+ * Stage events: rare things that happen in a level (Split Wall, Mirror). They follow a seeded plan per level
+ * and only start when the moment suits them. Order of kinds in events is part of the snapshot format.
+ */
+export const STAGE_EVENT_TYPES = ['wallWarn', 'wallStart', 'wallEnd', 'mirrorWarn', 'mirrorStart', 'mirrorEnd'] as const;
+export type StageEventType = (typeof STAGE_EVENT_TYPES)[number];
+
+export const STAGE = {
+  /** Mixed into the match seed so stage events never consume another RNG stream. */
+  seedSalt: 0x3c6ef372,
+  /** Earliest start (s), and the share of the clock after which nothing new starts. */
+  firstAfter: 10,
+  guard: 0.75,
+  /** Least seconds between two planned events. */
+  minGap: 14,
+  /** Warning shown before an event takes hold (s). */
+  warn: 1.5,
+  /** Split Wall: seconds, least spread between the outer Lancers, least orbs in play, thickness (px). */
+  wall: { seconds: 6, minSpread: 150, minOrbs: 4, thickness: 10 },
+  /** Mirror: seconds of reversed controls (Steady Hand halves it). */
+  mirror: { seconds: 5, steady: 0.5 },
+} as const;
+
+/** Pinch: two different Lancers hit the same orb within a few ticks and it vanishes without splitting. */
+export const PINCH = { ticks: 4, minSize: 2, bonus: 150 } as const;
 
 export const MATCH = {
   countdownSeconds: 3,

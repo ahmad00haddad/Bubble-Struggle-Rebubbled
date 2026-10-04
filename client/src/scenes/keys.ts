@@ -3,6 +3,7 @@ export const SCENES = {
   menu: 'Menu',
   howTo: 'HowTo',
   powerups: 'PowerUps',
+  relics: 'Relics',
   settings: 'Settings',
   online: 'Online',
   lobby: 'Lobby',
