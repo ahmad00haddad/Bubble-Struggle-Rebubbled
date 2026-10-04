@@ -14,6 +14,8 @@ export interface MatchOptions {
   shuffle?: boolean;
   /** Chaos pickups allowed (host setting). */
   chaos?: boolean;
+  /** Shove between Lancers (host setting, default off). */
+  shove?: boolean;
 }
 
 export type PauseReason = 'player' | 'disconnect';
@@ -39,7 +41,7 @@ export class Match {
 
   constructor(opts: MatchOptions) {
     const levels = opts.shuffle ? shuffleLevels(opts.levels, opts.seed, opts.startLevel || undefined) : opts.levels;
-    this.sim = new GameSimulation({ levels, activeSlots: opts.activeSlots, seed: opts.seed, chaos: opts.chaos });
+    this.sim = new GameSimulation({ levels, activeSlots: opts.activeSlots, seed: opts.seed, chaos: opts.chaos, shove: opts.shove });
     if (!opts.shuffle && opts.startLevel) this.sim.loadLevel(Math.min(opts.startLevel, opts.levels.length - 1));
     this.setPhase('countdown', MATCH.countdownSeconds);
   }

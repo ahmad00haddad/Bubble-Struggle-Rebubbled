@@ -1,4 +1,4 @@
-import { INPUT, ROOM } from '../constants/game';
+import { EMOTES, INPUT, ROOM } from '../constants/game';
 import type { LevelConfig } from '../types/level';
 import type { TickedEvent } from '../types/state';
 
@@ -10,6 +10,8 @@ export type ClientMessage =
   | { t: 'in'; s: number; b: number }
   | { t: 'ready'; v: boolean }
   | { t: 'chaos'; v: boolean }
+  | { t: 'shove'; v: boolean }
+  | { t: 'emo'; v: number }
   | { t: 'pick'; v: number }
   | { t: 'rtc'; to: number; d: string }
   | { t: 'pause' }
@@ -51,6 +53,12 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case 'chaos':
       if (typeof o.v !== 'boolean') return null;
       return { t: 'chaos', v: o.v };
+    case 'shove':
+      if (typeof o.v !== 'boolean') return null;
+      return { t: 'shove', v: o.v };
+    case 'emo':
+      if (!Number.isInteger(o.v) || (o.v as number) < 0 || (o.v as number) >= EMOTES.length) return null;
+      return { t: 'emo', v: o.v as number };
     case 'rtc':
       // Signaling for LAN mode: the room only passes this text to another seat, it never reads it.
       if (!Number.isInteger(o.to) || (o.to as number) < 0 || (o.to as number) >= ROOM.maxPlayers) return null;
@@ -135,6 +143,8 @@ export interface RoomInfo {
   host: number;
   /** Chaos pickups on (multiplayer only). */
   chaos: boolean;
+  /** Shove between Lancers (host option, default off). */
+  shove?: boolean;
   /** Host option: -1 = play all levels in order, otherwise the one level to play (practice). */
   pick: number;
   pause?: { by: number; reason: 'player' | 'disconnect' };
@@ -184,6 +194,8 @@ export type ServerMessage =
   /** `o` = how many levels precede a single picked level, so the HUD can show its real number. */
   | { t: 'level'; i: number; n: number; cfg: LevelConfig; o?: number }
   | { t: 'rtc'; from: number; d: string }
+  /** Quick emote from seat `s` (index into EMOTES). */
+  | { t: 'emo'; s: number; v: number }
   | SnapMessage
   | { t: 'pong'; c: number; s: number }
   | { t: 'error'; code: ErrorCode; msg: string };

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_VERSION } from '@orb/shared';
+import { GAME_VERSION, utcDay } from '@orb/shared';
 import { audio } from '../audio/AudioManager';
 import { VIEW } from '../config/clientConfig';
 import { getSettings } from '../config/settings';
@@ -24,11 +24,12 @@ export class MenuScene extends Phaser.Scene {
     const items: [string, () => void, boolean?][] = [
       ['PLAY SOLO', () => goTo(this, SCENES.game, { mode: 'solo', nickname: getSettings().nickname || 'Lancer', startLevel: Math.max(0, Number(new URLSearchParams(location.search).get('level') ?? 1) - 1) || 0 }), true],
       ['PLAY ONLINE', () => goTo(this, SCENES.online), true],
+      ['DAILY LEVEL', () => goTo(this, SCENES.game, { mode: 'solo', nickname: getSettings().nickname || 'Lancer', daily: utcDay() })],
       ['PRACTICE', () => goTo(this, SCENES.levelSelect)],
       ['HOW TO PLAY', () => goTo(this, SCENES.howTo)],
       ['SETTINGS', () => goTo(this, SCENES.settings)],
     ];
-    const buttons = items.map(([label, fn, primary], i) => new Button(this, cx, 252 + i * 62, label, fn, { primary }));
+    const buttons = items.map(([label, fn, primary], i) => new Button(this, cx, 238 + i * 56, label, fn, { primary, height: 48 }));
     new ButtonGroup(this, buttons).focus(0);
 
     this.add.text(cx, VIEW.height - 22, 'ARROWS + ENTER TO NAVIGATE  ·  ORIGINAL GAME — ALL ART & SOUND GENERATED', TEXT.body(13, COLORS.textDim)).setOrigin(0.5).setAlpha(0.7);

@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { BUBBLE_SIZES, INPUT, RELIC_KINDS, TICK_RATE, type TickedEvent } from '@orb/shared';
+import { AwardTally, BUBBLE_SIZES, EMOTES, INPUT, LEVELS, RELIC_KINDS, SHOVE, TICK_RATE, dailyChallenge, type TickedEvent } from '@orb/shared';
+import { AWARD_INFO, EMOTE_GLYPHS, blameLine } from '../config/social';
+import { ClipRecorder } from '../game/ClipRecorder';
 import { RELIC_INFO } from '../config/relics';
 import { orbColor, TEXTURES } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
@@ -28,6 +30,8 @@ export interface GameSceneData {
   startLevel?: number;
   /** Solo only: play just `startLevel` (from the Practice menu). */
   practice?: boolean;
+  /** Solo only: the daily level of this UTC day ('YYYY-MM-DD'). */
+  daily?: string;
 }
 
 
@@ -54,6 +58,12 @@ export class GameScene extends Phaser.Scene {
   private clearBonus: number[] = [];
   private fatal: string | null = null;
   private leaving = false;
+  /** Who did what this match, for the awards card (cosmetic). */
+  private tally = new AwardTally();
+  /** When each Lancer was last shoved (ms), to tell "shoved into it" from "orb a friend split". */
+  private shovedAt: number[] = [];
+  private feed: Phaser.GameObjects.Text[] = [];
+  private clip: ClipRecorder | null = null;
 
   constructor() {
     super(SCENES.game);
@@ -69,6 +79,9 @@ export class GameScene extends Phaser.Scene {
     this.levelId = '';
     this.lastPhase = '';
     this.prevBits = 0;
+    this.tally = new AwardTally();
+    this.shovedAt = [];
+    this.feed = [];
 
     if (data.mode === 'online') {
       const session = this.registry.get(REGISTRY.session) as NetSession | undefined;
@@ -80,6 +93,13 @@ export class GameScene extends Phaser.Scene {
       this.source = new NetSource(session);
       session.on('room', this.onRoom, this);
       session.on('error', this.onNetError, this);
+      session.on('emo', this.onEmote, this);
+    } else if (data.daily) {
+      this.session = null;
+      const d = dailyChallenge(data.daily, LEVELS.length);
+      const src = new LocalSource(data.nickname || 'Lancer', d.level, true, d.seed);
+      src.daily = data.daily;
+      this.source = src;
     } else {
       this.session = null;
       this.source = new LocalSource(data.nickname || 'Lancer', data.startLevel ?? 0, !!data.practice);
@@ -95,6 +115,7 @@ export class GameScene extends Phaser.Scene {
     this.bigText = this.add.text(VIEW.width / 2, VIEW.arenaY + 200, '', TEXT.title(64)).setOrigin(0.5).setDepth(90).setShadow(5, 6, '#1a0f3d', 0, false, true);
     this.banner = this.add.text(VIEW.width / 2, VIEW.arenaY + 22, '', TEXT.display(11, COLORS.accentCss)).setOrigin(0.5).setDepth(95).setShadow(2, 2, '#000', 0, false, true);
     this.createTouchControls();
+    this.createSocialControls();
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.cleanup());
     if (this.session && this.session.room && !this.session.room.inMatch) this.toLobby();
@@ -105,6 +126,9 @@ export class GameScene extends Phaser.Scene {
     this.overlayGroup?.destroy();
     this.session?.off('room', this.onRoom, this);
     this.session?.off('error', this.onNetError, this);
+    this.session?.off('emo', this.onEmote, this);
+    this.clip?.stop();
+    this.clip = null;
     this.source?.destroy();
   }
 
@@ -177,7 +201,15 @@ export class GameScene extends Phaser.Scene {
   private handleEvent(e: TickedEvent, v: ViewState): void {
     const top = VIEW.arenaY;
     const shake = (ms: number, k: number) => getSettings().screenShake && this.cameras.main.shake(ms, k);
+    this.tally.add(e);
     switch (e.k) {
+      case 'shove': {
+        const q = v.players[e.to];
+        this.shovedAt[e.to] = performance.now();
+        audio.play('hit', { pitch: 0.7 });
+        if (q) this.floatText(q.x, VIEW.arenaBottom - 70, 'SHOVE!', PLAYER_CSS[e.p] ?? '#fff', 10);
+        break;
+      }
       case 'shoot':
         if (this.source.mode === 'solo' || e.p !== this.source.localSlot) audio.play('shoot');
         break;
@@ -207,6 +239,13 @@ export class GameScene extends Phaser.Scene {
         audio.play('death');
         if (p) this.burst(p.x, VIEW.arenaBottom - 24, PLAYER_COLORS[e.p], 30, 260);
         if (e.out && p) this.floatText(p.x, VIEW.arenaBottom - 80, 'KNOCKED OUT', COLORS.bad, 12);
+        if (this.source.mode === 'online') {
+          const names = this.source.names();
+          const blamed = e.b !== undefined ? (names[e.b] ?? `P${e.b + 1}`).toUpperCase() : undefined;
+          const line = blameLine((names[e.p] ?? `P${e.p + 1}`).toUpperCase(), e.c, blamed, this.wasShoved(e.p));
+          this.addFeed(line, e.b !== undefined ? (PLAYER_CSS[e.b] ?? COLORS.bad) : COLORS.textDim);
+          if (e.b !== undefined && p) this.floatText(p.x, VIEW.arenaBottom - 104, `THANKS, ${blamed} 🙃`, PLAYER_CSS[e.b] ?? '#fff', 10);
+        }
         break;
       }
       case 'respawn': {
@@ -564,6 +603,10 @@ export class GameScene extends Phaser.Scene {
       this.lastCount = -1;
     }
     if (v.phase === 'paused') this.bigText.setAlpha(0);
+    if ((this.lastPhase === 'gameOver' || this.lastPhase === 'victory') && v.phase === 'countdown') {
+      this.tally = new AwardTally();
+      this.shovedAt = [];
+    }
     this.lastPhase = v.phase;
 
     // Banner: reconnecting / partner state
@@ -670,25 +713,39 @@ export class GameScene extends Phaser.Scene {
       body(cy + 30, 'Everyone loses a life — retry!', COLORS.textDim, 17);
     } else if (key.startsWith('gameOver') || key.startsWith('victory')) {
       const won = key.startsWith('victory');
-      add(panel(this, cx, cy, 620, 380));
+      const social = this.socialLines(v, won);
+      const daily = this.source.daily;
+      // Awards make the card taller; everything below the scores moves down by `dy`.
+      const dy = social.length ? 8 + social.length * 21 : 0;
+      add(panel(this, cx, cy + dy / 2, 620, 380 + dy));
       title(cy - 140, won ? 'VICTORY!' : 'GAME OVER', won ? COLORS.good : COLORS.bad, 32);
       const scoreLines = v.players
         .filter((p) => p.active || p.score > 0)
         .map((p) => `${(names[p.slot] ?? 'P' + (p.slot + 1)).toUpperCase()}   ${String(p.score).padStart(6, '0')}`)
         .join('\n');
       add(this.add.text(cx, cy - 64, scoreLines, TEXT.display(14)).setOrigin(0.5).setAlign('center').setLineSpacing(10));
-      if (won) body(cy - 4, this.source.practice ? 'Practice level cleared!' : `All ${this.source.levelCount} levels cleared. Legendary teamwork!`, COLORS.textDim, 16);
+      social.forEach((l, i) => body(cy - 2 + i * 21, l.text, l.color, 15));
+      const y0 = cy + dy;
+      if (daily) body(y0 - 4, `DAILY LEVEL ${daily}  ·  the same level for everyone today`, COLORS.textDim, 15);
+      else if (won) body(y0 - 4, this.source.practice ? 'Practice level cleared!' : `All ${this.source.levelCount} levels cleared. Legendary teamwork!`, COLORS.textDim, 16);
       if (online) {
         const seats = this.session?.room?.seats ?? [];
         const mine = seats[this.source.localSlot]?.rematch;
         const theirs = seats.some((s, i) => i !== this.source.localSlot && s?.rematch);
-        if (theirs && !mine) body(cy + 22, 'Your partner wants a rematch!', COLORS.accentCss, 17);
-        btn(cy + 64, mine ? 'WAITING FOR PARTNER…' : 'REMATCH', () => this.source.requestRematch(), true).setEnabled(!mine);
-        btn(cy + 128, 'RETURN TO LOBBY', () => this.session?.toLobby());
-        btn(cy + 192 - 10, 'MAIN MENU', () => this.quitToMenu(), false, 220).setScale(0.85);
+        if (theirs && !mine) body(y0 + 22, 'Your partner wants a rematch!', COLORS.accentCss, 17);
+        btn(y0 + 64, mine ? 'WAITING FOR PARTNER…' : 'REMATCH', () => this.source.requestRematch(), true).setEnabled(!mine);
+        btn(y0 + 128, 'RETURN TO LOBBY', () => this.session?.toLobby());
+        if (this.clip) {
+          btn(y0 + 182, '📹 SAVE CLIP', () => this.saveClip(), false, 220).setScale(0.85).setX(cx - 120);
+          btn(y0 + 182, 'MAIN MENU', () => this.quitToMenu(), false, 220).setScale(0.85).setX(cx + 120);
+        } else btn(y0 + 182, 'MAIN MENU', () => this.quitToMenu(), false, 220).setScale(0.85);
+      } else if (daily) {
+        btn(y0 + 64, 'PLAY AGAIN', () => this.source.requestRematch(), true);
+        btn(y0 + 128, 'COPY SCORE', () => this.copyDaily(v, won), false, 220).setX(cx - 120);
+        btn(y0 + 128, 'MAIN MENU', () => this.quitToMenu(), false, 220).setX(cx + 120);
       } else {
-        btn(cy + 64, 'PLAY AGAIN', () => this.source.requestRematch(), true);
-        btn(cy + 128, 'MAIN MENU', () => this.quitToMenu());
+        btn(y0 + 64, 'PLAY AGAIN', () => this.source.requestRematch(), true);
+        btn(y0 + 128, 'MAIN MENU', () => this.quitToMenu());
       }
     }
 
@@ -698,6 +755,106 @@ export class GameScene extends Phaser.Scene {
     }
     this.overlay.setAlpha(0);
     this.tweens.add({ targets: this.overlay, alpha: 1, duration: 180 });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Social: awards, blame, emotes, clips, daily score
+  // ---------------------------------------------------------------------------
+
+  /** Award lines and the "final blow" line for the end card (online matches with 2+ Lancers). */
+  private socialLines(v: ViewState, won: boolean): { text: string; color: string }[] {
+    if (this.source.mode !== 'online') return [];
+    const names = this.source.names();
+    const slots = v.players.filter((p) => p.active || p.score > 0).map((p) => p.slot);
+    if (slots.length < 2) return [];
+    const nm = (s: number) => (names[s] ?? `P${s + 1}`).toUpperCase();
+    const out: { text: string; color: string }[] = this.tally.awards(slots).map((a) => ({
+      text: `${AWARD_INFO[a.kind].title}  ${nm(a.slot)}: ${AWARD_INFO[a.kind].line.replace('{n}', String(a.n))}`,
+      color: PLAYER_CSS[a.slot] ?? COLORS.text,
+    }));
+    const last = this.tally.lastDeath;
+    if (!won && last) {
+      const blamed = last.b !== undefined ? nm(last.b) : undefined;
+      out.push({ text: `FINAL BLOW: ${blameLine(nm(last.p), last.c, blamed, this.wasShoved(last.p))}`, color: COLORS.bad });
+    }
+    return out.slice(0, 5);
+  }
+
+  private wasShoved(slot: number): boolean {
+    return performance.now() - (this.shovedAt[slot] ?? -1e9) < SHOVE.blameSeconds * 1000 + 400;
+  }
+
+  /** Kill feed under the HUD: the newest three lines, each fading after a few seconds. */
+  private addFeed(text: string, color: string): void {
+    const t = this.add.text(12, VIEW.arenaY + 10, text, TEXT.body(15, color)).setDepth(96).setShadow(2, 2, '#000', 0, false, true);
+    this.feed.unshift(t);
+    this.feed.splice(3).forEach((o) => o.destroy());
+    this.feed.forEach((o, i) => o.setY(VIEW.arenaY + 10 + i * 20));
+    this.tweens.add({
+      targets: t,
+      alpha: 0,
+      delay: 3500,
+      duration: 600,
+      onComplete: () => {
+        this.feed = this.feed.filter((o) => o !== t);
+        t.destroy();
+      },
+    });
+  }
+
+  private onEmote(slot: number, index: number): void {
+    const glyph = EMOTE_GLYPHS[index];
+    const p = this.lastView?.players[slot];
+    if (!glyph || !p || !p.active) return;
+    const name = (this.source.names()[slot] ?? '').toUpperCase();
+    const t = this.add.text(p.x, VIEW.arenaBottom - 96, glyph, { fontSize: '34px', fontFamily: 'sans-serif' }).setOrigin(0.5).setDepth(97).setScale(0.3);
+    const tag = this.add.text(p.x, VIEW.arenaBottom - 70, name, TEXT.body(12, PLAYER_CSS[slot] ?? '#fff')).setOrigin(0.5).setDepth(97);
+    audio.play('tick', { pitch: 1.4 + index * 0.15 });
+    this.tweens.add({ targets: t, scale: 1, duration: 220, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: [t, tag], y: '-=40', alpha: 0, delay: 1100, duration: 500, onComplete: () => (t.destroy(), tag.destroy()) });
+  }
+
+  private sendEmote(index: number): void {
+    if (index >= 0 && index < EMOTES.length) this.session?.sendEmote(index);
+  }
+
+  private saveClip(): void {
+    const ok = this.clip?.clip();
+    this.floatText(VIEW.width / 2, VIEW.arenaY + 60, ok ? 'CLIP SAVED 📹' : 'NOTHING RECORDED YET', ok ? COLORS.good : COLORS.textDim, 12);
+  }
+
+  private copyDaily(v: ViewState, won: boolean): void {
+    const score = v.players[0]?.score ?? 0;
+    const text = `Orb Lancers DAILY ${this.source.daily}: level ${v.levelIndex + 1}, ${score} pts ${won ? '✅' : '💀'}\n${location.origin}`;
+    const shown = () => this.floatText(VIEW.width / 2, VIEW.arenaY + 60, 'SCORE COPIED, SEND IT TO YOUR FRIENDS', COLORS.good, 11);
+    const failed = () => this.floatText(VIEW.width / 2, VIEW.arenaY + 60, text.split('\n')[0], COLORS.text, 9);
+    if (navigator.clipboard) void navigator.clipboard.writeText(text).then(shown, failed);
+    else failed();
+  }
+
+  /** Emote keys (1-4), clip key (C), the clip recorder, and touch buttons for both. Online only. */
+  private createSocialControls(): void {
+    if (this.source.mode !== 'online') return;
+    if (ClipRecorder.supported) {
+      this.clip = new ClipRecorder(this.game.canvas, audio.stream());
+      this.clip.start();
+    }
+    const kb = this.input.keyboard;
+    ['ONE', 'TWO', 'THREE', 'FOUR'].forEach((k, i) => kb?.on(`keydown-${k}`, () => this.sendEmote(i)));
+    kb?.on('keydown-C', () => this.saveClip());
+    if (this.sys.game.device.input.touch) {
+      const items: [string, () => void][] = EMOTE_GLYPHS.map((g, i): [string, () => void] => [g, () => this.sendEmote(i)]);
+      if (this.clip) items.push(['📹', () => this.saveClip()]);
+      items.forEach(([g, fn], i) => {
+        const x = VIEW.width / 2 + (i - (items.length - 1) / 2) * 50;
+        const y = VIEW.height - 34;
+        const c = this.add.circle(x, y, 20, 0xffffff, 0.1).setStrokeStyle(2, 0xffffff, 0.3).setDepth(80).setInteractive();
+        this.add.text(x, y, g, { fontSize: '20px', fontFamily: 'sans-serif' }).setOrigin(0.5).setDepth(81).setAlpha(0.85);
+        c.on('pointerdown', fn);
+      });
+    } else {
+      this.add.text(VIEW.width / 2, VIEW.height - 8, `1-4 EMOTES${this.clip ? '  ·  C SAVE CLIP' : ''}`, TEXT.body(12, COLORS.textDim)).setOrigin(0.5, 1).setDepth(81).setAlpha(0.6);
+    }
   }
 
   // ---------------------------------------------------------------------------

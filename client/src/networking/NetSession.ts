@@ -32,7 +32,7 @@ function setRoomParam(code: string | null): void {
  * Client view of one online room. Survives scene changes (stored in the game
  * registry) so lobby → game → lobby keeps the same connection.
  *
- * Events: 'welcome' | 'room' (RoomInfo) | 'level' | 'status' (NetStatus) | 'error' ({code,msg})
+ * Events: 'welcome' | 'emo' (slot, index) | 'room' (RoomInfo) | 'level' | 'status' (NetStatus) | 'error' ({code,msg})
  */
 export class NetSession extends Phaser.Events.EventEmitter {
   slot = -1;
@@ -107,6 +107,14 @@ export class NetSession extends Phaser.Events.EventEmitter {
   setChaos(v: boolean): void {
     this.client.send({ t: 'chaos', v });
   }
+  /** Host only: switch shoving between Lancers on or off before the match starts. */
+  setShove(v: boolean): void {
+    this.client.send({ t: 'shove', v });
+  }
+  /** Quick emote (index into EMOTES). The room rate-limits it and shows it to everyone. */
+  sendEmote(v: number): void {
+    this.client.send({ t: 'emo', v });
+  }
   /** LAN mode: pass connection details to another player through the online room. */
   sendRtc(to: number, d: string): void {
     this.client.send({ t: 'rtc', to, d });
@@ -157,6 +165,9 @@ export class NetSession extends Phaser.Events.EventEmitter {
         break;
       case 'rtc':
         this.emit('rtc', m.from, m.d);
+        break;
+      case 'emo':
+        this.emit('emo', m.s, m.v);
         break;
       case 'room':
         this.room = m;

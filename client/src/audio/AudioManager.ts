@@ -56,6 +56,17 @@ export class AudioManager {
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
 
+  /** A stream of everything the game plays (for clip recording), or null before audio is unlocked. */
+  stream(): MediaStream | null {
+    if (!this.ctx || !this.master || typeof this.ctx.createMediaStreamDestination !== 'function') return null;
+    if (!this.tap) {
+      this.tap = this.ctx.createMediaStreamDestination();
+      this.master.connect(this.tap);
+    }
+    return this.tap.stream;
+  }
+  private tap: MediaStreamAudioDestinationNode | null = null;
+
   applyVolume(): void {
     if (!this.master) return;
     const s = getSettings();

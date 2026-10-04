@@ -8,6 +8,7 @@ export * from './sim/rng';
 export * from './sim/physics';
 export * from './sim/GameSimulation';
 export * from './sim/Match';
+export * from './sim/awards';
 export * from './protocol/messages';
 export * from './protocol/codec';
 export * from './protocol/roomCode';

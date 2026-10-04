@@ -6,6 +6,7 @@ import {
   INPUT,
   ANCHOR,
   CHAOS,
+  SHOVE,
   CHAOS_KINDS,
   PHYSICS,
   PINCH,
@@ -34,6 +35,7 @@ import type { LevelConfig } from '../types/level';
 import type {
   BombState,
   BubbleState,
+  DeathCause,
   HarpoonState,
   PlayerState,
   PowerUpState,
@@ -59,6 +61,8 @@ export interface SimOptions {
   seed: number;
   /** Chaos pickups allowed (host setting, default on). They also need 2+ Lancers. */
   chaos?: boolean;
+  /** Shove: walking into a teammate pushes them (host setting, default off). */
+  shove?: boolean;
 }
 
 /** Special events that mean the team just worked together (they can earn a relic crate). */
@@ -108,6 +112,9 @@ function newPlayer(slot: number, active: boolean): PlayerState {
     dashDir: 0,
     tapDir: 0,
     tapTick: -99,
+    shovedBy: -1,
+    shovedT: 99,
+    shoveGap: 0,
     qd: true,
     swUsed: false,
     swBoost: false,
@@ -166,6 +173,7 @@ export class GameSimulation {
   /** Children of the last few pops, so a second Lancer's hit on one of them can be a Pinch. */
   private recentPops: { tick: number; owner: number; ids: [number, number] }[] = [];
   readonly chaosEnabled: boolean;
+  readonly shoveEnabled: boolean;
   private nextBombAt = Infinity;
   private nextId = 1;
   private placedSpawned = new Set<number>();
@@ -182,6 +190,7 @@ export class GameSimulation {
     this.relicRng = new Rng(this.seed ^ RELIC.seedSalt);
     this.stageRng = new Rng(this.seed ^ STAGE.seedSalt);
     this.chaosEnabled = opts.chaos !== false;
+    this.shoveEnabled = opts.shove === true;
     const self = this;
     this.specialHost = {
       get rng() {
@@ -443,6 +452,7 @@ export class GameSimulation {
     this.timeLeftTicks--;
 
     // --- Players -----------------------------------------------------------
+    const moved: number[] = [];
     for (const p of this.players) {
       if (!p.active) continue;
       p.ticksSinceSeq++;
@@ -486,6 +496,9 @@ export class GameSimulation {
         p.iced = false;
       }
       p.x = nx;
+      moved[p.slot] = nx - before;
+      p.shovedT += dt;
+      p.shoveGap = Math.max(0, p.shoveGap - dt);
       if (p.input & INPUT.LEFT && !(p.input & INPUT.RIGHT)) p.facing = -1;
       else if (p.input & INPUT.RIGHT && !(p.input & INPUT.LEFT)) p.facing = 1;
 
@@ -543,6 +556,8 @@ export class GameSimulation {
         }
       }
     }
+
+    if (this.shoveEnabled) this.stepShove(moved, dt);
 
     // --- Magnet Core: every few ticks small and medium orbs turn toward the Lancer -----
     if (this.levelTicks % RARE.magnetEvery === 0) {
@@ -636,8 +651,9 @@ export class GameSimulation {
     for (const p of this.players) {
       if (!p.active || p.life !== 'alive' || p.invuln > 0) continue;
       const box = playerHitbox(p.x);
-      const hit = this.bubbles.some((b) => b.fz === undefined && !isIntangible(b) && circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius - 1, box));
-      if (hit || onSpikes(this.level, p.x)) this.damagePlayer(p);
+      const hit = this.bubbles.find((b) => b.fz === undefined && !isIntangible(b) && circleRectOverlap(b.x, b.y, BUBBLE_SIZES[b.size].radius - 1, box));
+      if (hit) this.damagePlayer(p, 'orb', hit.lh);
+      else if (onSpikes(this.level, p.x)) this.damagePlayer(p, 'spikes');
     }
 
     // --- Bombs -------------------------------------------------------------
@@ -915,7 +931,7 @@ export class GameSimulation {
         if (!p.active || p.life !== 'alive' || p.invuln > 0) continue;
         const dx = p.x - b.x;
         const dy = WORLD.height - PLAYER.hitboxHeight / 2 - b.y;
-        if (dx * dx + dy * dy <= radius * radius) this.damagePlayer(p);
+        if (dx * dx + dy * dy <= radius * radius) this.damagePlayer(p, 'bomb');
       }
     }
     this.bombs = keep;
@@ -927,12 +943,45 @@ export class GameSimulation {
       if (!p.active || p.life === 'out') continue;
       p.lives = Math.max(0, p.lives - 1);
       p.life = p.lives > 0 ? 'alive' : 'out';
-      this.emit({ k: 'die', p: p.slot, out: p.life === 'out' });
+      this.emit({ k: 'die', p: p.slot, out: p.life === 'out', c: 'time' });
     }
     return this.players.some((p) => p.active && p.life !== 'out');
   }
 
-  private damagePlayer(p: PlayerState): void {
+  /** Who gets the blame for a death: a recent shove beats the orb's maker. Never yourself. */
+  private blameFor(p: PlayerState, orbMaker?: number): number | undefined {
+    if (p.shovedBy >= 0 && p.shovedBy !== p.slot && p.shovedT <= SHOVE.blameSeconds) return p.shovedBy;
+    if (orbMaker !== undefined && orbMaker >= 0 && orbMaker !== p.slot && this.players[orbMaker]?.active) return orbMaker;
+    return undefined;
+  }
+
+  /** Shove: a Lancer walking into a teammate pushes them the same way. */
+  private stepShove(moved: number[], dt: number): void {
+    const wall = this.stage?.kind === 'wall' && this.stage.phase === 'active' ? this.stage : null;
+    for (const p of this.players) {
+      const d = Math.sign(moved[p.slot] ?? 0);
+      if (!p.active || p.life !== 'alive' || d === 0) continue;
+      for (const q of this.players) {
+        if (q === p || !q.active || q.life !== 'alive') continue;
+        const gap = (q.x - p.x) * d;
+        if (gap < 0 || gap > SHOVE.range) continue;
+        const lim = wall ? wallBounds(wall.x, q.x) : {};
+        const lo = lim.lo ?? PLAYER.width / 2;
+        const hi = lim.hi ?? WORLD.width - PLAYER.width / 2;
+        const nx = clamp(q.x + d * SHOVE.speed * dt, lo, hi);
+        if (nx === q.x) continue;
+        q.x = nx;
+        q.shovedBy = p.slot;
+        q.shovedT = 0;
+        if (p.shoveGap <= 0) {
+          p.shoveGap = SHOVE.eventGap;
+          this.emit({ k: 'shove', p: p.slot, to: q.slot });
+        }
+      }
+    }
+  }
+
+  private damagePlayer(p: PlayerState, cause: DeathCause, orbMaker?: number): void {
     p.hitThisLevel = true;
     if (p.shield > 0) {
       p.shield = 0;
@@ -967,7 +1016,8 @@ export class GameSimulation {
       p.life = 'out';
     }
     this.emit({ k: 'hurt', p: p.slot, shield: false });
-    this.emit({ k: 'die', p: p.slot, out: p.life === 'out' });
+    const blame = this.blameFor(p, orbMaker);
+    this.emit({ k: 'die', p: p.slot, out: p.life === 'out', c: cause, ...(blame !== undefined ? { b: blame } : {}) });
     // Rescue beacon: a Flare falls where the Lancer went down. A teammate has to reach it
     // (and stay alive on the way) before it fades; otherwise they sit out until the level ends.
     if (p.life === 'out' && this.specialHost.activePlayers() >= 1 && this.players.some((q) => q.active && q.slot !== p.slot && q.life === 'alive')) {
@@ -1009,7 +1059,7 @@ export class GameSimulation {
       const f = b.fast ? HAZARDS.fastOrbMultiplier : 1;
       // While the team runs hot, new children start a little faster for a few seconds.
       const h = (this.hot ? HEAT.boostMul : 1) * this.orbSlow;
-      const heated = this.hot ? { hot: true, ht: HEAT.boostSeconds } : {};
+      const heated = { ...(this.hot ? { hot: true, ht: HEAT.boostSeconds } : {}), ...(by >= 0 ? { lh: by } : {}) };
       const idA = this.nextId++;
       const idB = this.nextId++;
       this.bubbles.push(

@@ -1,5 +1,6 @@
 import {
   CLOSE_CODES,
+  EMOTE_GAP_MS,
   IDLE_SNAPSHOT_EVERY_TICKS,
   LEVELS,
   Match,
@@ -51,6 +52,8 @@ export interface RoomMeta {
   seats: (SeatMeta | null)[];
   /** Room option, host-controlled in the lobby. Absent means on. */
   chaos?: boolean;
+  /** Room option: shove between Lancers. Absent means off. */
+  shove?: boolean;
   /** Host option: play only this level index; absent or -1 means every level in order. */
   pick?: number;
   /** Set when the room has expired; the record is kept briefly as a tombstone. */
@@ -64,6 +67,8 @@ interface Seat extends SeatMeta {
   inputs: { s: number; b: number }[];
   lastSeqSeen: number;
   limiter: RateLimiter;
+  /** Last emote time (ms), for the emote rate limit. */
+  lastEmo?: number;
 }
 
 export type JoinResult = { ok: true; slot: number; token: string } | { ok: false; code: ErrorCode };
@@ -354,6 +359,21 @@ export class RoomCore {
         this.broadcastRoom();
         return;
       }
+      case 'shove': {
+        // Host only, and only before a match starts.
+        if (m || slot !== this.hostSlot() || !this.meta) return;
+        this.meta.shove = msg.v;
+        this.persist();
+        this.broadcastRoom();
+        return;
+      }
+      case 'emo': {
+        const now = this.host.now();
+        if (seat.lastEmo !== undefined && now - seat.lastEmo < EMOTE_GAP_MS) return;
+        seat.lastEmo = now;
+        this.broadcast({ t: 'emo', s: slot, v: msg.v });
+        return;
+      }
       case 'pause': {
         if (m && m.sim.players[slot]?.active && m.pause('player', slot)) {
           this.flushPhase();
@@ -428,7 +448,7 @@ export class RoomCore {
     const pick = this.meta.pick ?? -1;
     const single = pick >= 0 && pick < this.levels.length;
     this.matchOffset = single ? pick : 0;
-    this.match = new Match({ levels: single ? [this.levels[pick]] : this.levels, activeSlots: active, seed: Math.floor(this.host.random() * 2 ** 32), chaos: this.meta.chaos !== false });
+    this.match = new Match({ levels: single ? [this.levels[pick]] : this.levels, activeSlots: active, seed: Math.floor(this.host.random() * 2 ** 32), chaos: this.meta.chaos !== false, shove: this.meta.shove === true });
     this.sentLevelVersion = -1;
     this.pendingEvents = [];
     this.ticksSinceSnap = 0;
@@ -621,6 +641,7 @@ export class RoomCore {
       inMatch: !!m,
       host: this.hostSlot(),
       chaos: this.meta?.chaos !== false,
+      shove: this.meta?.shove === true,
       pick: this.meta?.pick ?? -1,
       seats: this.seats.map((s, i) =>
         s

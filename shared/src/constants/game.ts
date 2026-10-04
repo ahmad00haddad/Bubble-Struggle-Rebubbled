@@ -6,7 +6,7 @@
 export const GAME_NAME = 'ORB LANCERS';
 
 /** Shown on the main menu. Bump it with every change that gets deployed (see CLAUDE.md). */
-export const GAME_VERSION = '1.8';
+export const GAME_VERSION = '1.9';
 
 /** Fixed simulation rate (server and solo). */
 export const TICK_RATE = 30;
@@ -395,6 +395,25 @@ export const CHAOS = {
   /** Weight of the chaos pickup in drop pools and gift crates (multiplied by ScaleProfile.chaosRate). */
   dropWeight: 1,
 } as const;
+
+/**
+ * Shove (host option, multiplayer): walking into a teammate pushes them along. If they get hit soon
+ * after, the death is blamed on the pusher. Cosmetic blame only; it changes no score.
+ */
+export const SHOVE = {
+  /** How fast the pushed Lancer is moved (px/s). Slower than walking, so it is a nudge, not a launch. */
+  speed: 150,
+  /** Bodies closer than this (px, center to center) are touching. */
+  range: 26,
+  /** A death this soon after a shove (seconds) is the pusher's fault. */
+  blameSeconds: 1.5,
+  /** Minimum gap between two 'shove' events from the same pusher (seconds). */
+  eventGap: 0.8,
+} as const;
+
+/** Quick emotes (index is sent on the wire; append only). */
+export const EMOTES = ['laugh', 'help', 'here', 'angry'] as const;
+export const EMOTE_GAP_MS = 700;
 
 /**
  * Relics: permanent traits a Lancer keeps for the rest of the run. A team earns an Unknown Relic crate by

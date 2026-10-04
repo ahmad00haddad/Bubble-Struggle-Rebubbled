@@ -20,3 +20,21 @@ export function shuffleLevels(levels: readonly LevelConfig[], seed: number, firs
   }
   return out;
 }
+
+/**
+ * Daily level: everyone who plays on the same (UTC) day gets the same level and the same seed, so
+ * drops, specials and sky events match and scores can be compared. `day` is 'YYYY-MM-DD'.
+ * Levels 1-5 are skipped: they teach the basics.
+ */
+export function dailyChallenge(day: string, levelCount: number): { level: number; seed: number } {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < day.length; i++) h = Math.imul(h ^ day.charCodeAt(i), 0x01000193) >>> 0;
+  const skip = Math.min(5, Math.max(0, levelCount - 1));
+  const level = skip + (h % Math.max(1, levelCount - skip));
+  return { level, seed: Math.imul(h ^ 0x9e3779b9, 0x85ebca6b) >>> 0 };
+}
+
+/** Today's date as 'YYYY-MM-DD' (UTC, so every country gets the same daily level at the same time). */
+export function utcDay(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}

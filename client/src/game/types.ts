@@ -64,6 +64,8 @@ export interface GameSource {
   readonly levelCount: number;
   /** Solo practice on one chosen level. */
   readonly practice?: boolean;
+  /** Daily level: the UTC day it belongs to ('YYYY-MM-DD'). */
+  readonly daily?: string;
   names(): string[];
   /** Advance local clocks/prediction and feed the current input bits. */
   update(dtMs: number, inputBits: number): void;

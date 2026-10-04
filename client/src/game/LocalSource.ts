@@ -23,8 +23,11 @@ export class LocalSource implements GameSource {
   private events: TickedEvent[] = [];
   private seq = 0;
   private lastBits = 0;
+  /** Daily level: the UTC day it belongs to. */
+  daily?: string;
 
-  constructor(private nickname: string, startLevel = 0, practice = false) {
+  /** Daily level: a fixed seed so every player gets the same drops and events today. */
+  constructor(private nickname: string, startLevel = 0, practice = false, private readonly fixedSeed?: number) {
     this.practice = practice;
     this.levels = practice ? [LEVELS[Math.min(Math.max(startLevel, 0), LEVELS.length - 1)]] : LEVELS;
     this.offset = practice ? Math.min(Math.max(startLevel, 0), LEVELS.length - 1) : 0;
@@ -33,7 +36,7 @@ export class LocalSource implements GameSource {
   }
 
   private newMatch(startLevel: number): Match {
-    const m = new Match({ levels: this.levels, activeSlots: [true], seed: (Math.random() * 2 ** 32) >>> 0, startLevel });
+    const m = new Match({ levels: this.levels, activeSlots: [true], seed: this.fixedSeed ?? (Math.random() * 2 ** 32) >>> 0, startLevel });
     this.events.push(...m.drainEvents());
     return m;
   }

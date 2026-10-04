@@ -1,5 +1,7 @@
 import type { BubbleSize, ChaosKind, GiftEventType, PowerUpType, RelicEventType, SkyKind, StageEventType, SpecialEventType, SpecialKind } from '../constants/game';
 
+export type DeathCause = 'orb' | 'spikes' | 'bomb' | 'time';
+
 export type LifeState = 'alive' | 'dead' | 'out';
 
 export interface PlayerState {
@@ -62,6 +64,10 @@ export interface PlayerState {
   swBoost: boolean;
   lastSeq: number;
   ticksSinceSeq: number;
+  /** Server-only shove bookkeeping: who pushed this Lancer last, seconds since, and the pusher's event gap. */
+  shovedBy: number;
+  shovedT: number;
+  shoveGap: number;
 }
 
 export interface BubbleState {
@@ -90,6 +96,8 @@ export interface BubbleState {
   hm?: number;
   /** Sequence: this orb's place in the order (1-based). */
   n?: number;
+  /** Server-only: the Lancer whose pop made this orb (blame for deaths). Never networked. */
+  lh?: number;
 }
 
 export interface BombState {
@@ -167,7 +175,9 @@ export type SimEvent =
   | { k: 'shoot'; p: number; x: number }
   | { k: 'pop'; id: number; s: BubbleSize; x: number; y: number; by: number; pts: number }
   | { k: 'hurt'; p: number; shield: boolean }
-  | { k: 'die'; p: number; out: boolean }
+  /** `c` = cause (orb, spikes, bomb, time); `b` = the teammate blamed for it (split that orb, or shoved you into it). */
+  | { k: 'die'; p: number; out: boolean; c?: DeathCause; b?: number }
+  | { k: 'shove'; p: number; to: number }
   | { k: 'respawn'; p: number }
   | { k: 'drop'; type: PowerUpType; x: number; y: number }
   | { k: 'pickup'; p: number; type: PowerUpType; x: number; y: number }

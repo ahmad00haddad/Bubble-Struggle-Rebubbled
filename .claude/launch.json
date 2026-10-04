@@ -4,8 +4,26 @@
     {
       "name": "client",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "-w", "client"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "client"
+      ],
       "port": 5173
+    },
+    {
+      "name": "worker",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "node_modules/wrangler/bin/wrangler.js",
+        "dev",
+        "--port",
+        "8787",
+        "--persist-to",
+        "C:/tmp/orb-state"
+      ],
+      "port": 8787
     }
   ]
 }

@@ -4,6 +4,7 @@ import { LANCER_FRAMES, TEXTURES, TEX_SCALE } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
 import { LanCoordinator } from '../lan/LanCoordinator';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
+import { EMOTE_GLYPHS } from '../config/social';
 import { getSettings } from '../config/settings';
 import type { NetSession } from '../networking/NetSession';
 import { Button, ButtonGroup } from '../ui/Button';
@@ -19,6 +20,7 @@ export class LobbyScene extends Phaser.Scene {
   private net!: Phaser.GameObjects.Text;
   private startBtn!: Button;
   private chaosBtn!: Button;
+  private shoveBtn!: Button;
   private levelBtn!: Button;
   private lanBtn: Button | null = null;
   private lan: LanCoordinator | null = null;
@@ -31,6 +33,11 @@ export class LobbyScene extends Phaser.Scene {
 
   create(): void {
     this.leaving = false;
+    // The scene object is reused (e.g. back from the level picker): drop views of the last visit.
+    this.seatViews = [];
+    this.lanBtn = null;
+    this.lan = null;
+    this.noteUntil = 0;
     const session = this.registry.get(REGISTRY.session) as NetSession | undefined;
     if (!session) {
       this.scene.start(SCENES.online);
@@ -71,16 +78,20 @@ export class LobbyScene extends Phaser.Scene {
       this.lanBtn = new Button(this, bx[2], 406, 'LAN MATCH (P2P)', () => void this.lan?.startAsHost(), { width: bw, fontSize: 8 });
       this.lan = new LanCoordinator(session, session.nickname, { status: (t, bad) => this.note(t, bad), adopt: (s) => this.adoptLan(s) });
     }
-    this.startBtn = new Button(this, cx, 456, 'START', () => this.toggleReady(), { primary: true, width: 320 });
+    this.startBtn = new Button(this, cx, 456, 'START', () => this.toggleReady(), { primary: true, width: 300 });
+    this.shoveBtn = new Button(this, cx - 260, 456, 'SHOVE: OFF', () => this.toggleShove(), { width: 190, fontSize: 8 });
+    const emote = new Button(this, cx + 260, 456, `SEND ${EMOTE_GLYPHS[0]}`, () => this.session.sendEmote(0), { width: 190, fontSize: 9 });
     const copyLink = session.peer ? null : new Button(this, cx - 130, 514, 'COPY INVITE LINK', () => this.copy(this.inviteLink(), 'Invite link copied!'), { width: 250, fontSize: 11 });
     const leave = new Button(this, session.peer ? cx : cx + 130, 514, 'LEAVE ROOM', () => this.leave(), { width: session.peer ? 320 : 250, fontSize: 11 });
-    const group = [this.startBtn, this.chaosBtn, this.levelBtn, ...(this.lanBtn ? [this.lanBtn] : []), ...(copyLink ? [copyLink] : []), leave];
+    const group = [this.startBtn, this.shoveBtn, emote, this.chaosBtn, this.levelBtn, ...(this.lanBtn ? [this.lanBtn] : []), ...(copyLink ? [copyLink] : []), leave];
     new ButtonGroup(this, group, { onBack: () => this.leave() }).focus(0);
     this.net = this.add.text(VIEW.width - 12, VIEW.height - 10, '', TEXT.body(14, COLORS.textDim)).setOrigin(1, 1);
 
     session.on('room', this.refresh, this);
     session.on('error', this.onError, this);
+    session.on('emo', this.onEmote, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      session.off('emo', this.onEmote, this);
       session.off('room', this.refresh, this);
       session.off('error', this.onError, this);
       this.lan?.dispose();
@@ -122,6 +133,8 @@ export class LobbyScene extends Phaser.Scene {
     const isHost = room.host === me;
     this.chaosBtn.setText(`CHAOS PICKUPS: ${room.chaos ? 'ON' : 'OFF'}${isHost ? '' : ' (HOST ONLY)'}`);
     this.chaosBtn.setEnabled(isHost);
+    this.shoveBtn.setText(`SHOVE: ${room.shove ? 'ON 😈' : 'OFF'}${isHost ? '' : ' (HOST)'}`);
+    this.shoveBtn.setEnabled(isHost);
     const pick = room.pick ?? -1;
     const lv = pick >= 0 ? LEVELS[pick] : undefined;
     this.levelBtn.setText(pick >= 0 ? `LEVEL ${pick + 1}: ${(lv?.name ?? '').toUpperCase()}${isHost ? '' : ' (HOST)'}` : `LEVELS: ALL${isHost ? '' : ' (HOST ONLY)'}`);
@@ -172,6 +185,25 @@ export class LobbyScene extends Phaser.Scene {
     if (!room || room.host !== this.session.slot) return;
     audio.unlock();
     goTo(this, SCENES.levelSelect, { forRoom: true });
+  }
+
+  /** Host option: walking into a teammate pushes them (and a death right after is their fault). */
+  private toggleShove(): void {
+    const room = this.session.room;
+    if (!room || room.host !== this.session.slot) return;
+    audio.unlock();
+    this.session.setShove(!room.shove);
+  }
+
+  /** A player sent an emote: it pops above their seat card. */
+  private onEmote(slot: number, index: number): void {
+    const glyph = EMOTE_GLYPHS[index];
+    if (!glyph || this.leaving) return;
+    const { x, y } = this.cardPos(slot);
+    const t = this.add.text(x + 120, y - 10, glyph, { fontSize: '30px', fontFamily: 'sans-serif' }).setOrigin(0.5).setDepth(20).setScale(0.3);
+    audio.play('tick', { pitch: 1.5 });
+    this.tweens.add({ targets: t, scale: 1, duration: 200, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: t, y: y - 50, alpha: 0, delay: 900, duration: 500, onComplete: () => t.destroy() });
   }
 
   private toggleChaos(): void {
