@@ -164,6 +164,8 @@ export interface SnapMessage {
   sl?: number;
   /** Heat as a percentage of the governor threshold (omitted when cold) */
   hl?: number;
+  /** Baton Crate window: [owner slot, seconds left x10] (omitted when none) */
+  bt?: number[];
   e?: TickedEvent[];
 }
 

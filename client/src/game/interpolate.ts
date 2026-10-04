@@ -42,6 +42,7 @@ export function buildView(a: Snapshot, b: Snapshot | null, rt: number, level: Le
     levelIndex: a.levelIndex,
     sky: os.sky,
     heat: os.heat,
+    baton: os.baton,
     slow: os.slow,
     levelTicks,
     players: a.players.map((p) => {

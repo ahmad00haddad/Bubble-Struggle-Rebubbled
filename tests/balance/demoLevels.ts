@@ -35,6 +35,10 @@ export const DEMO_LEVELS: LevelConfig[] = [
   demo('demo-pincer', (i) => (i < 2 ? { special: 'pincer' } : {})),
   demo('demo-heavy', (i) => (i === 0 ? { special: 'heavy' } : {})),
   demoSequence(),
+  demo('demo-coop', (i) => (i < 2 ? { special: 'coop' } : {})),
+  demo('demo-coop3', (i) => (i < 2 ? { special: 'coop', need: 3 } : {})),
+  demo('demo-link', (i) => (i < 2 ? { special: 'link', group: 1 } : {})),
+  demo('demo-priority', (i) => (i === 0 ? { special: 'priority' } : {})),
   demo('demo-mixed', (i) => (i === 0 ? { special: 'hardshell' } : i === 1 ? { special: 'ghost', phase: 0.5 } : {})),
 ];
 

@@ -121,6 +121,8 @@ export interface Snapshot {
   sky?: NetSky;
   /** Heat as a share of the governor threshold (0 when cold, 1 = governor on). */
   heat: number;
+  /** Baton Crate: who holds it and seconds left for a teammate to pop an orb. */
+  baton?: { owner: number; t: number };
   events: TickedEvent[];
 }
 
@@ -208,6 +210,7 @@ export function encodeSnapshot(match: Match, events: TickedEvent[]): SnapMessage
   if (sim.bombs.length) msg.x = sim.bombs.map((b) => (b.r ? [b.id, r1(b.x), r1(b.y), t10(b.fuse), b.r] : [b.id, r1(b.x), r1(b.y), t10(b.fuse)]));
   if (sim.sky) msg.s = [SKY_KINDS.indexOf(sim.sky.kind), sim.sky.phase === 'active' ? 1 : 0, t10(sim.sky.t), sim.sky.a, ...sim.sky.lanes];
   if (sim.heat >= 0.05) msg.hl = Math.round(sim.heatRatio * 100);
+  if (sim.baton) msg.bt = [sim.baton.owner, t10(sim.baton.t)];
   if (events.length) msg.e = events;
   return msg;
 }
@@ -253,6 +256,7 @@ export function decodeSnapshot(m: SnapMessage): Snapshot {
     slow: (m.sl ?? 0) / 10,
     ...(m.s ? { sky: { kind: SKY_KINDS[m.s[0]], phase: m.s[1] ? ('active' as const) : ('warn' as const), t: m.s[2] / 10, a: m.s[3], lanes: m.s.slice(4) } } : {}),
     heat: (m.hl ?? 0) / 100,
+    ...(m.bt ? { baton: { owner: m.bt[0], t: m.bt[1] / 10 } } : {}),
     events: m.e ?? [],
   };
 }
@@ -307,6 +311,7 @@ export function snapshotFromMatch(match: Match, events: TickedEvent[] = []): Sna
     slow: sim.slowT,
     ...(sim.sky ? { sky: { ...sim.sky, lanes: [...sim.sky.lanes] } } : {}),
     heat: sim.heatRatio,
+    ...(sim.baton ? { baton: { owner: sim.baton.owner, t: sim.baton.t } } : {}),
     events,
   };
 }

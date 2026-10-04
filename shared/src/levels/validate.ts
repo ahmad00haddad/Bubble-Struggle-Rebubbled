@@ -34,20 +34,21 @@ export function validateLevel(l: LevelConfig): string[] {
   l.bubbles.forEach((b, i) => {
     if (b.special !== undefined && !(SPECIAL_KINDS as readonly string[]).includes(b.special)) errs.push(`${where}: bubble ${i} has unknown special "${b.special}"`);
     if (b.group !== undefined) {
-      if (b.special !== 'twin' && b.special !== 'sequence') errs.push(`${where}: bubble ${i} has a group but is not a twin or sequence orb`);
+      if (b.special !== 'twin' && b.special !== 'sequence' && b.special !== 'link') errs.push(`${where}: bubble ${i} has a group but is not a twin, link or sequence orb`);
       else groups.set(`${b.special}:${b.group}`, (groups.get(`${b.special}:${b.group}`) ?? 0) + 1);
     }
-    if ((b.special === 'twin' || b.special === 'sequence') && b.group === undefined) errs.push(`${where}: ${b.special} bubble ${i} needs a group`);
+    if ((b.special === 'twin' || b.special === 'sequence' || b.special === 'link') && b.group === undefined) errs.push(`${where}: ${b.special} bubble ${i} needs a group`);
     if (b.order !== undefined && b.special !== 'sequence') errs.push(`${where}: bubble ${i} has an order but is not a sequence orb`);
     if (b.special === 'sequence') {
       if (!(Number.isInteger(b.order) && (b.order as number) >= 1)) errs.push(`${where}: sequence bubble ${i} needs an integer order >= 1`);
       else if (b.group !== undefined) orders.set(b.group, [...(orders.get(b.group) ?? []), b.order as number]);
       if (b.size > 1) errs.push(`${where}: sequence bubble ${i} must be small or medium`);
     }
+    if (b.need !== undefined && !(b.special === 'coop' && Number.isInteger(b.need) && b.need >= 2 && b.need <= 4)) errs.push(`${where}: bubble ${i} need is only for coop orbs and must be an integer 2..4`);
     if (b.phase !== undefined && !(b.phase >= 0 && b.special === 'ghost')) errs.push(`${where}: bubble ${i} phase is only for ghosts and must be >= 0`);
   });
   for (const [key, n] of groups) {
-    if (key.startsWith('twin:') && n !== 2) errs.push(`${where}: ${key} must have exactly 2 bubbles (has ${n})`);
+    if ((key.startsWith('twin:') || key.startsWith('link:')) && n !== 2) errs.push(`${where}: ${key} must have exactly 2 bubbles (has ${n})`);
     if (key.startsWith('sequence:') && (n < 2 || n > 5)) errs.push(`${where}: ${key} needs 2 to 5 bubbles (has ${n})`);
   }
   for (const [g, os] of orders) {

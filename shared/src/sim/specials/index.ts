@@ -3,10 +3,14 @@ import type { LevelConfig } from '../../types/level';
 import type { BubbleState } from '../../types/state';
 import type { Rng } from '../rng';
 import type { ScaleProfile } from '../scaling';
+import { coop } from './coop';
+import type { CoopStats } from './coopStats';
 import { ghost } from './ghost';
 import { hardshell } from './hardshell';
 import { heavy, quad } from './heavy';
+import { link } from './link';
 import { pincer } from './pincer';
+import { priority } from './priority';
 import { sequence } from './sequence';
 import { sync } from './sync';
 import { twin } from './twin';
@@ -28,6 +32,10 @@ export interface SpecialHost {
   readonly scale: ScaleProfile;
   /** Lancers who can still take part right now (seated, not knocked out). Live value. */
   activePlayers(): number;
+  /** Cooperative target counters (telemetry only). */
+  readonly coopStats: CoopStats;
+  /** Add seconds to the level clock (team reward). */
+  addTime(seconds: number): void;
   /** Every orb currently in play. */
   orbs(): readonly BubbleState[];
   bubbleById(id: number): BubbleState | undefined;
@@ -59,10 +67,12 @@ export interface SpecialDef {
   /** Every simulation tick, after physics. */
   onTick?(host: SpecialHost, b: BubbleState, dt: number): void;
   /** Just before the orb is removed and split. */
-  onPop?(host: SpecialHost, b: BubbleState): void;
+  onPop?(host: SpecialHost, b: BubbleState, by: number): void;
 }
 
-export const SPECIAL_DEFS: Record<SpecialKind, SpecialDef> = { hardshell, ghost, twin, sync, pincer, heavy, sequence, quad };
+export const SPECIAL_DEFS: Record<SpecialKind, SpecialDef> = { hardshell, ghost, twin, sync, pincer, heavy, sequence, quad, coop, link, priority };
+
+export { countCoop, newCoopStats, type CoopKind, type CoopKindStats, type CoopStats } from './coopStats';
 
 export function isIntangible(b: BubbleState): boolean {
   return b.sp ? (SPECIAL_DEFS[b.sp].intangible?.(b) ?? false) : false;

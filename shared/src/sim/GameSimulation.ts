@@ -41,7 +41,7 @@ import { Rng } from './rng';
 import { activePlatforms, onSpikes, orbSpeedMul, spawnX } from './hazards';
 import { scaleProfile, type ScaleProfile } from './scaling';
 import { planSky, type SkyPlanEntry } from './director';
-import { SPECIAL_DEFS, isIntangible, passesHarpoon, type SpecialHost } from './specials';
+import { SPECIAL_DEFS, countCoop, isIntangible, newCoopStats, passesHarpoon, type CoopStats, type SpecialHost } from './specials';
 
 export interface SimOptions {
   levels: readonly LevelConfig[];
@@ -112,6 +112,8 @@ export class GameSimulation {
   private specialRng: Rng;
   private readonly seed: number;
   private readonly specialHost: SpecialHost;
+  /** Cooperative target telemetry, cumulative over the match. */
+  readonly coopStats: CoopStats = newCoopStats();
   /** The one sky event in progress (warning or lasting effect), if any. */
   sky: SkyState | null = null;
   private skyPlan: SkyPlanEntry[] = [];
@@ -146,6 +148,10 @@ export class GameSimulation {
       },
       get scale() {
         return self.scale;
+      },
+      coopStats: this.coopStats,
+      addTime: (seconds) => {
+        this.timeLeftTicks += Math.round(seconds * TICK_RATE);
       },
       activePlayers: () => this.players.reduce((n, p) => n + (p.active && p.life !== 'out' ? 1 : 0), 0),
       orbs: () => this.bubbles,
@@ -241,18 +247,20 @@ export class GameSimulation {
   /** Tag special orbs from the level data, run their init, and link Twin Fuse pairs. */
   private initSpecials(): void {
     this.specialRng = new Rng((this.seed ^ SPECIAL.seedSalt ^ Math.imul(this.levelIndex + 1, 0x9e3779b1)) >>> 0);
-    const pairs = new Map<number, BubbleState>();
+    const pairs = new Map<string, BubbleState>();
     this.level.bubbles.forEach((s, i) => {
       if (!s.special) return;
       const b = this.bubbles[i];
       b.sp = s.special;
       SPECIAL_DEFS[s.special].init?.(this.specialHost, b, s);
-      if (s.special === 'twin' && s.group !== undefined) {
-        const other = pairs.get(s.group);
+      if ((s.special === 'twin' || s.special === 'link') && s.group !== undefined) {
+        const key = `${s.special}:${s.group}`;
+        const other = pairs.get(key);
         if (other) {
           other.lk = b.id;
           b.lk = other.id;
-        } else pairs.set(s.group, b);
+          if (s.special === 'link' && b.sp === 'link') countCoop(this.coopStats, 'link', 'spawned');
+        } else pairs.set(key, b);
       }
     });
     this.promoteSpecials();
@@ -819,11 +827,17 @@ export class GameSimulation {
     }
     this.emit({ k: 'hurt', p: p.slot, shield: false });
     this.emit({ k: 'die', p: p.slot, out: p.life === 'out' });
+    // Rescue beacon: a Flare falls where the Lancer went down. A teammate has to reach it
+    // (and stay alive on the way) before it fades; otherwise they sit out until the level ends.
+    if (p.life === 'out' && this.specialHost.activePlayers() >= 1 && this.players.some((q) => q.active && q.slot !== p.slot && q.life === 'alive')) {
+      this.spawnPowerUp('flare', p.x, 20);
+      this.coopStats.rescueOffered++;
+    }
   }
 
   private popBubble(index: number, by: number): void {
     const b = this.bubbles[index];
-    if (b.sp) SPECIAL_DEFS[b.sp].onPop?.(this.specialHost, b);
+    if (b.sp) SPECIAL_DEFS[b.sp].onPop?.(this.specialHost, b, by);
     this.heat += 1;
     const pts = BUBBLE_SIZES[b.size].points;
     const scorer = this.players[by];
@@ -1042,6 +1056,7 @@ export class GameSimulation {
         down.respawnTimer = 0;
         down.x = p.x;
         down.invuln = PLAYER.invulnAfterRespawn;
+        this.coopStats.rescued++;
         this.emit({ k: 'respawn', p: down.slot });
         this.gift('flare', p.slot, p.x, y, down.slot);
         break;

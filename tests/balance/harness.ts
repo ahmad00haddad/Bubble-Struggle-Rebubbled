@@ -15,6 +15,7 @@ import {
   passesHarpoon,
   playerHitbox,
   scaleProfile,
+  type CoopStats,
   type BubbleState,
   type LevelConfig,
   type PlayerState,
@@ -49,10 +50,12 @@ export interface RunResult {
   specialsFailed: number | null;
   skyEvents: number | null;
   heatPeak: number | null;
+  /** Cooperative target counters (cumulative for the run); null when the level has none. */
+  coop: CoopStats | null;
 }
 
-const TRIGGER = new Set<string>(['enrage', 'fuseStart', 'fuseSave', 'syncDone', 'pincerDone', 'heavyDone', 'seqDone']);
-const FAIL = new Set<string>(['fuseFail', 'miss', 'syncFail', 'pincerFail', 'heavyFail', 'seqReset', 'deny']);
+const TRIGGER = new Set<string>(['enrage', 'fuseStart', 'fuseSave', 'syncDone', 'pincerDone', 'heavyDone', 'seqDone', 'coopDone', 'linkDone', 'priorityDone']);
+const FAIL = new Set<string>(['fuseFail', 'miss', 'syncFail', 'pincerFail', 'heavyFail', 'seqReset', 'deny', 'coopFail', 'linkFail', 'priorityFail']);
 
 const DECISION_TICKS = 4;
 const LOOKAHEAD_STEPS = 5;
@@ -164,6 +167,7 @@ function decide(
 function crew(sim: GameSimulation, b: BubbleState, alive: number): number {
   if (alive < 2) return 1;
   if (b.sp === 'sync' || b.sp === 'pincer') return 2;
+  if (b.sp === 'coop') return Math.min(alive, Math.max(2, b.n ?? 2));
   if (b.sp === 'heavy') return Math.min(alive, Math.max(2, Math.ceil(sim.scale.players / 2)));
   return 1;
 }
@@ -172,6 +176,7 @@ export function runLevel(level: LevelConfig, players: number, seed: number): Run
   const sim = new GameSimulation({ levels: [level], activeSlots: Array.from({ length: players }, () => true), seed });
   const rng = new Rng(seed ^ 0x9e3779b9);
   const hasSpecials = level.bubbles.some((b) => b.special);
+  const hasCoop = level.bubbles.some((b) => b.special === 'coop' || b.special === 'link' || b.special === 'priority');
   let heatPeak = 0;
   let sky = 0;
   let triggered = 0;
@@ -192,7 +197,9 @@ export function runLevel(level: LevelConfig, players: number, seed: number): Run
       const offsets: Offsets = new Map();
       for (const t of tracks) {
         const crewSize = crew(sim, t.b, alive.length);
-        const ranked = [...alive].sort((a, c) => Math.abs(t.path[AIM_STEP].x - a.x) - Math.abs(t.path[AIM_STEP].x - c.x)).slice(0, crewSize);
+        // Link: once the partner is on the clock the Lancer who popped the first orb leaves it to a teammate.
+        const pool = t.b.sp === 'link' && (t.b.sa ?? 0) > 0 && alive.length >= 2 ? alive.filter((p) => ((t.b.hm ?? 0) & (1 << p.slot)) === 0) : alive;
+        const ranked = [...pool].sort((a, c) => Math.abs(t.path[AIM_STEP].x - a.x) - Math.abs(t.path[AIM_STEP].x - c.x)).slice(0, crewSize);
         ranked.forEach((p, rank) => {
           owned.get(p.slot)!.push(t);
           if (t.b.sp === 'pincer') {
@@ -248,6 +255,7 @@ export function runLevel(level: LevelConfig, players: number, seed: number): Run
     specialsFailed: hasSpecials ? failed : null,
     skyEvents: sky,
     heatPeak,
+    coop: hasCoop ? { ...sim.coopStats, byKind: { ...sim.coopStats.byKind } } : null,
   };
 }
 
@@ -269,6 +277,19 @@ export interface Summary {
   specialsFailed: number | null;
   skyEvents: number | null;
   heatPeak: number | null;
+  /** Cooperative targets, mean per run (null when the level has none). */
+  coop: {
+    spawned: number;
+    completed: number;
+    failed: number;
+    /** completed / (completed + failed); null when none were resolved. */
+    successRate: number | null;
+    repeatHits: number;
+    /** Mean Lancers who took part per completed target. */
+    participantsPerTarget: number | null;
+    /** Mean seconds a target spent with its window or deadline running, per resolved target. */
+    armedSecondsPerTarget: number | null;
+  } | null;
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -277,6 +298,24 @@ const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
   return s[Math.floor(s.length / 2)];
 };
+
+function summarizeCoop(rs: RunResult[]): Summary['coop'] {
+  const cs = rs.map((r) => r.coop).filter((c): c is CoopStats => c !== null);
+  if (!cs.length) return null;
+  const sum = (f: (c: CoopStats) => number) => cs.reduce((a, c) => a + f(c), 0);
+  const completed = sum((c) => c.completed);
+  const failed = sum((c) => c.failed);
+  const resolved = completed + failed;
+  return {
+    spawned: sum((c) => c.spawned) / cs.length,
+    completed: completed / cs.length,
+    failed: failed / cs.length,
+    successRate: resolved ? completed / resolved : null,
+    repeatHits: sum((c) => c.repeatHits) / cs.length,
+    participantsPerTarget: completed ? sum((c) => c.participants) / completed : null,
+    armedSecondsPerTarget: resolved ? sum((c) => c.armedTicks) / TICK_RATE / resolved : null,
+  };
+}
 
 export function summarize(rs: RunResult[], timeLimit: number): Summary {
   const cleared = rs.filter((r) => r.outcome === 'cleared');
@@ -298,6 +337,7 @@ export function summarize(rs: RunResult[], timeLimit: number): Summary {
     specialsFailed: optional('specialsFailed'),
     skyEvents: optional('skyEvents'),
     heatPeak: optional('heatPeak'),
+    coop: summarizeCoop(rs),
   };
 }
 
@@ -311,7 +351,7 @@ const f1 = (v: number | null) => (v === null ? '-' : v.toFixed(1));
 
 /** Tab-separated, aligned with spaces for the terminal. Dashes mean "not implemented yet". */
 export function formatTable(rows: Summary[]): string {
-  const head = ['level', 'N', 'clear%', 'gameov%', 'med.s', 'limit', 'deaths', 'lives', 'popped', 'shots', 'spec+', 'spec-', 'sky', 'heat'];
+  const head = ['level', 'N', 'clear%', 'gameov%', 'med.s', 'limit', 'deaths', 'lives', 'popped', 'shots', 'spec+', 'spec-', 'sky', 'heat', 'coop+', 'coop-', 'coop%', 'repeat', 'ppl', 'win.s'];
   const body = rows.map((r) => [
     r.level,
     String(r.players),
@@ -327,6 +367,12 @@ export function formatTable(rows: Summary[]): string {
     f1(r.specialsFailed),
     f1(r.skyEvents),
     f1(r.heatPeak),
+    f1(r.coop?.completed ?? null),
+    f1(r.coop?.failed ?? null),
+    r.coop?.successRate == null ? '-' : String(Math.round(r.coop.successRate * 100)),
+    f1(r.coop?.repeatHits ?? null),
+    f1(r.coop?.participantsPerTarget ?? null),
+    f1(r.coop?.armedSecondsPerTarget ?? null),
   ]);
   const widths = head.map((h, i) => Math.max(h.length, ...body.map((b) => b[i].length)));
   const line = (cells: string[]) => cells.map((c, i) => c.padEnd(widths[i])).join('  ');

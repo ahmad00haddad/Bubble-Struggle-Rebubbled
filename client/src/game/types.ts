@@ -42,6 +42,8 @@ export interface ViewState {
   sky?: NetSky;
   /** Heat as a share of the governor threshold. */
   heat: number;
+  /** Baton Crate window, if any. */
+  baton?: { owner: number; t: number };
   /** Seconds of Slow Orbs left. */
   slow: number;
   powerups: { id: number; type: PowerUpType; x: number; y: number; life: number }[];

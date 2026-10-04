@@ -23,6 +23,8 @@ export interface BubbleSpawn {
   group?: number;
   /** Sequence: place in the order, 1-based and contiguous within the group. */
   order?: number;
+  /** Coop: different Lancers needed (2..4, capped at the team size). Defaults to SPECIAL.coop.defaultNeed. */
+  need?: number;
   /** Ghost: seconds into its cycle at level start. Drawn from the special RNG when omitted. */
   phase?: number;
 }

@@ -382,6 +382,29 @@ export class GameScene extends Phaser.Scene {
         audio.play('sync');
         word('TEAM UP!', '#c9a27e');
         break;
+      case 'coopHit':
+        audio.play('sync', { pitch: 1.25 });
+        this.burst(x, y, 0x2ee6a6, 8, 120);
+        break;
+      case 'linkStart':
+        audio.play('fuse', { pitch: 1.2 });
+        this.burst(x, y, 0xff9f1c, 10, 140);
+        break;
+      case 'linkDone':
+      case 'priorityDone':
+        audio.play('combo');
+        this.burst(x, y, 0xffe066, 22, 220);
+        break;
+      case 'priorityFail':
+        audio.play('enrage');
+        this.burst(x, y, 0xff3b30, 14, 180);
+        break;
+      case 'linkFail':
+      case 'coopFail':
+        audio.play('deny');
+        this.burst(x, y, 0xff3b30, 10, 150);
+        break;
+      case 'coopDone':
       case 'syncDone':
       case 'pincerDone':
       case 'heavyDone':

@@ -6,7 +6,7 @@
 export const GAME_NAME = 'ORB LANCERS';
 
 /** Shown on the main menu. Bump it with every change that gets deployed (see CLAUDE.md). */
-export const GAME_VERSION = '1.5';
+export const GAME_VERSION = '1.6';
 
 /** Fixed simulation rate (server and solo). */
 export const TICK_RATE = 30;
@@ -208,7 +208,7 @@ export const HAZARDS = {
 } as const;
 
 /** Special bubbles. Kind order is part of the snapshot format: append only, never reorder. */
-export const SPECIAL_KINDS = ['hardshell', 'ghost', 'twin', 'sync', 'pincer', 'heavy', 'sequence', 'quad'] as const;
+export const SPECIAL_KINDS = ['hardshell', 'ghost', 'twin', 'sync', 'pincer', 'heavy', 'sequence', 'quad', 'coop', 'link', 'priority'] as const;
 export type SpecialKind = (typeof SPECIAL_KINDS)[number];
 
 /** Discrete things a special reports to clients (FX, audio, balance counters). */
@@ -235,8 +235,22 @@ export const SPECIAL_EVENTS = [
   'seqDone',
   /** A hit that made no progress (same shooter / same side again). */
   'deny',
+  /** Coop target: a Lancer's hit counted / enough different Lancers hit it / the window ran out. */
+  'coopHit',
+  'coopDone',
+  'coopFail',
+  /** Link: first orb popped (the partner is on the clock) / partner popped by a different Lancer / the window ran out. */
+  'linkStart',
+  'linkDone',
+  'linkFail',
+  /** Priority: popped before the deadline (team gains time) / the deadline passed. */
+  'priorityDone',
+  'priorityFail',
 ] as const;
 export type SpecialEventType = (typeof SPECIAL_EVENTS)[number];
+
+/** Seconds a Coop orb waits for the other Lancers, by how many it needs. */
+export const coopWindow = (need: number): number => (need >= 3 ? SPECIAL.coop.windowBig : SPECIAL.coop.window);
 
 export const SPECIAL = {
   /** Mixed into the match seed so specials never consume the power-up / bomb RNG stream. */
@@ -271,6 +285,29 @@ export const SPECIAL = {
   quad: {
     /** Quad-lock: needs four different shooters within this many seconds of the first hit. */
     window: 3,
+  },
+  coop: {
+    /** Seconds, from the first hit, for the other Lancers to land theirs. */
+    window: 2,
+    /** Window when 3 or more Lancers are needed (more people to line up). */
+    windowBig: 2.5,
+    /** Lancers needed when a level does not say (BubbleSpawn.need), and the fewest players a coop orb needs to stay coop. */
+    defaultNeed: 2,
+    minPlayers: 2,
+    /** When the window runs out: 'reset' forgets the hits, 'rage' also makes the orb faster. */
+    failure: 'rage' as 'reset' | 'rage',
+  },
+  link: {
+    /** Seconds the partner stays on the clock after its twin pops. A different Lancer must finish it. */
+    window: 4,
+    minPlayers: 2,
+  },
+  priority: {
+    /** Seconds from level start to pop it before it regrows and enrages. */
+    window: 9,
+    /** Seconds added to the clock when the team pops it in time. */
+    rewardSeconds: 6,
+    minPlayers: 2,
   },
   /** Extra special orbs added in multiplayer (ScaleProfile.specialShare), by relative odds. Heavy needs 3+ players. */
   promote: { hardshell: 3, sync: 2, pincer: 1, ghost: 1, heavy: 1 },

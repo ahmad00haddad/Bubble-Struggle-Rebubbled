@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BUBBLE_SIZES, CHAOS_KINDS, SKY, SPECIAL, WORLD, ghostStage, type SpecialKind } from '@orb/shared';
+import { BUBBLE_SIZES, CHAOS_KINDS, RARE, SKY, SPECIAL, WORLD, coopWindow, ghostStage, type SpecialKind } from '@orb/shared';
 import { PLAYER_COLORS, VIEW } from '../config/clientConfig';
 import type { ViewState } from '../game/types';
 import { setLabel } from '../ui/text';
@@ -15,6 +15,9 @@ export const SPECIAL_COLOR: Record<SpecialKind, number> = {
   heavy: 0x9b7653,
   sequence: 0x7ee081,
   quad: 0xb388ff,
+  coop: 0x2ee6a6,
+  link: 0xff9f1c,
+  priority: 0xffe066,
 };
 
 export const RAGE_COLOR = 0xff3b30;
@@ -110,6 +113,28 @@ export class FxLayer {
           else if (stage === 'ghostly') this.dashedRing(x, y, r + 3, 0xbfd8ff, timeMs);
           break;
         }
+        case 'link': {
+          const partner = b.lk !== undefined ? byId.get(b.lk) : undefined;
+          if (partner && b.id < partner.id) {
+            g.lineStyle(2, SPECIAL_COLOR.link, (partner.sa ?? 0) > 0 || (b.sa ?? 0) > 0 ? 0.95 : 0.55);
+            g.lineBetween(x, y, partner.x, top + partner.y);
+          }
+          this.arc(x, y, r + 3, 0, Math.PI * 2, SPECIAL_COLOR.link, 2.5, 0.9);
+          if ((b.sa ?? 0) > 0) {
+            // This is the one on the clock: pulse hard and show the time left.
+            this.arc(x, y, r + 11, 0, Math.PI * 2, SPECIAL_COLOR.link, 3, 0.3 + 0.5 * pulse);
+            this.arc(x, y, r + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, (b.sa ?? 0) / SPECIAL.link.window), 0xffffff, 3, 0.95);
+          }
+          break;
+        }
+        case 'priority': {
+          const left = b.sa ?? 0;
+          const urgent = left > 0 && left < 4 && Math.floor(timeMs / 120) % 2 === 0;
+          this.arc(x, y, r + 3, 0, Math.PI * 2, urgent ? 0xff5d5d : SPECIAL_COLOR.priority, 3.5, 0.95);
+          this.arc(x, y, r + 10, 0, Math.PI * 2, SPECIAL_COLOR.priority, 2, 0.25 + 0.55 * pulse);
+          if (left > 0) this.arc(x, y, r + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, left / SPECIAL.priority.window), 0xffffff, 3, 0.95);
+          break;
+        }
         case 'twin': {
           const partner = b.lk !== undefined ? byId.get(b.lk) : undefined;
           if (partner && b.id < partner.id) {
@@ -125,13 +150,16 @@ export class FxLayer {
         }
         case 'sync':
         case 'heavy':
-        case 'quad': {
-          const need = b.sp === 'sync' ? 2 : b.sp === 'quad' ? 4 : Math.max(SPECIAL.heavy.minShooters, Math.ceil(alive / 2));
+        case 'quad':
+        case 'coop': {
+          const need = b.sp === 'coop' ? (b.n ?? SPECIAL.coop.defaultNeed) : b.sp === 'sync' ? 2 : b.sp === 'quad' ? 4 : Math.max(SPECIAL.heavy.minShooters, Math.ceil(alive / 2));
           const have = popcount(b.hm ?? 0);
           this.arc(x, y, r + 3, 0, Math.PI * 2, SPECIAL_COLOR[b.sp], 2.5, 0.9);
+          // Coop: once one Lancer has landed a hit, the orb pulses to say it is ready for the next.
+          if (b.sp === 'coop' && have > 0) this.arc(x, y, r + 11, 0, Math.PI * 2, SPECIAL_COLOR.coop, 3, 0.3 + 0.5 * pulse);
           this.pips(x, y + r + 9, need, have, SPECIAL_COLOR[b.sp]);
           if ((b.sa ?? 0) > 0) {
-            const total = b.sp === 'sync' ? (alive <= 1 ? SPECIAL.sync.windowSolo : SPECIAL.sync.window) : b.sp === 'quad' ? SPECIAL.quad.window : SPECIAL.heavy.window;
+            const total = b.sp === 'coop' ? coopWindow(b.n ?? 2) : b.sp === 'sync' ? (alive <= 1 ? SPECIAL.sync.windowSolo : SPECIAL.sync.window) : b.sp === 'quad' ? SPECIAL.quad.window : SPECIAL.heavy.window;
             this.arc(x, y, r + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, (b.sa ?? 0) / total), 0xffffff, 3, 0.9);
           }
           break;
@@ -157,6 +185,16 @@ export class FxLayer {
           this.label(`${b.id}:n`, x, y, lit ? '✓' : String(b.n ?? ''), lit ? '#5cf2a0' : '#ffffff', r > 14 ? 14 : 10);
           break;
         }
+      }
+    }
+
+    // Baton: the holder pulses and the ring runs down, so teammates see the window to pop an orb.
+    if (v.baton) {
+      const holder = v.players[v.baton.owner];
+      if (holder && holder.active && holder.life === 'alive') {
+        const yy = VIEW.arenaBottom - 22;
+        this.arc(holder.x, yy, 30, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, v.baton.t / RARE.batonSeconds), 0x4cc9f0, 4, 0.95);
+        this.arc(holder.x, yy, 36, 0, Math.PI * 2, 0x4cc9f0, 2, 0.25 + 0.5 * pulse);
       }
     }
 
