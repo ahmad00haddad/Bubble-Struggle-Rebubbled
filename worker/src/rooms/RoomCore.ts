@@ -413,7 +413,7 @@ export class RoomCore {
   private startMatch(): void {
     if (!this.meta) return;
     const active = this.seats.map((s) => !!s && !!s.conn);
-    this.match = new Match({ levels: this.levels, activeSlots: active, seed: Math.floor(this.host.random() * 2 ** 32), chaos: this.meta.chaos !== false });
+    this.match = new Match({ levels: this.levels, activeSlots: active, seed: Math.floor(this.host.random() * 2 ** 32), shuffle: true, chaos: this.meta.chaos !== false });
     this.sentLevelVersion = -1;
     this.pendingEvents = [];
     this.ticksSinceSnap = 0;

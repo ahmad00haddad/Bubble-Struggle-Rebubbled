@@ -1,13 +1,17 @@
 import { MATCH, PLAYER, TICK_RATE } from '../constants/game';
 import type { LevelConfig } from '../types/level';
 import type { MatchPhase, TickedEvent } from '../types/state';
+import { shuffleLevels } from '../levels/order';
 import { GameSimulation } from './GameSimulation';
 
 export interface MatchOptions {
   levels: readonly LevelConfig[];
   activeSlots: boolean[];
   seed: number;
+  /** With `shuffle`, the level to play first (an index into `levels`); otherwise the level to start on. */
   startLevel?: number;
+  /** Play the levels in a random order (seeded, so server and replays agree) instead of by difficulty. */
+  shuffle?: boolean;
   /** Chaos pickups allowed (host setting). */
   chaos?: boolean;
 }
@@ -34,8 +38,9 @@ export class Match {
   private events: TickedEvent[] = [];
 
   constructor(opts: MatchOptions) {
-    this.sim = new GameSimulation({ levels: opts.levels, activeSlots: opts.activeSlots, seed: opts.seed, chaos: opts.chaos });
-    if (opts.startLevel) this.sim.loadLevel(Math.min(opts.startLevel, opts.levels.length - 1));
+    const levels = opts.shuffle ? shuffleLevels(opts.levels, opts.seed, opts.startLevel || undefined) : opts.levels;
+    this.sim = new GameSimulation({ levels, activeSlots: opts.activeSlots, seed: opts.seed, chaos: opts.chaos });
+    if (!opts.shuffle && opts.startLevel) this.sim.loadLevel(Math.min(opts.startLevel, opts.levels.length - 1));
     this.setPhase('countdown', MATCH.countdownSeconds);
   }
 

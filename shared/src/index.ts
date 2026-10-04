@@ -16,3 +16,4 @@ export * from './sim/scaling';
 export * from './sim/director';
 export * from './sim/specials';
 export { ghostStage, GHOST_CYCLE_SECONDS } from './sim/specials/ghost';
+export * from './levels/order';

@@ -40,7 +40,7 @@ class FakeHost implements RoomHost {
 
 const levels = [
   testLevel({ id: 'l1', bubbles: [{ size: 3, x: 800, y: 100, velocityX: 0 }] }),
-  testLevel({ id: 'l2' }),
+  testLevel({ id: 'l2', bubbles: [{ size: 3, x: 800, y: 100, velocityX: 0 }] }),
 ];
 
 function ticks(room: RoomCore, host: FakeHost, n: number) {
@@ -123,8 +123,8 @@ describe('RoomCore', () => {
   it('both ready → countdown → playing, with level + snapshots to both', () => {
     startMatch();
     expect(host.loop).toBe(true);
-    expect(a.last('level')?.cfg.id).toBe('l1');
-    expect(b.last('level')?.cfg.id).toBe('l1');
+    expect(['l1', 'l2']).toContain(a.last('level')?.cfg.id);
+    expect(b.last('level')?.cfg.id).toBe(a.last('level')?.cfg.id);
     expect(a.last('room')?.phase).toBe('COUNTDOWN');
     ticks(room, host, MATCH.countdownSeconds * TICK_RATE + 2);
     expect(a.last('room')?.phase).toBe('PLAYING');

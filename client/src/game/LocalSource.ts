@@ -25,7 +25,7 @@ export class LocalSource implements GameSource {
   }
 
   private newMatch(startLevel: number): Match {
-    const m = new Match({ levels: LEVELS, activeSlots: [true], seed: (Math.random() * 2 ** 32) >>> 0, startLevel });
+    const m = new Match({ levels: LEVELS, activeSlots: [true], seed: (Math.random() * 2 ** 32) >>> 0, startLevel, shuffle: true });
     this.events.push(...m.drainEvents());
     return m;
   }
