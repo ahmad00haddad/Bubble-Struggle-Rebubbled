@@ -8,10 +8,12 @@ export interface Settings {
   screenShake: boolean;
   showNetStats: boolean;
   nickname: string;
+  /** Language of the how-to pages. */
+  lang: 'en' | 'ar';
 }
 
 const KEY = 'orb-lancers.settings';
-const DEFAULTS: Settings = { volume: 0.7, muted: false, screenShake: true, showNetStats: true, nickname: '' };
+const DEFAULTS: Settings = { volume: 0.7, muted: false, screenShake: true, showNetStats: true, nickname: '', lang: 'en' };
 
 let cache: Settings | null = null;
 

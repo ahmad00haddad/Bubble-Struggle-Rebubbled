@@ -7,6 +7,8 @@ export interface ButtonOptions {
   height?: number;
   primary?: boolean;
   fontSize?: number;
+  /** Overrides the label font (the Arabic how-to pages need a font with Arabic letters). */
+  fontFamily?: string;
 }
 
 /** Arcade-style button: hover/focus glow, press squash, click sound. */
@@ -32,7 +34,7 @@ export class Button extends Phaser.GameObjects.Container {
     this.bh = opt.height ?? 52;
     this.primary = !!opt.primary;
     this.bg = scene.add.graphics();
-    this.label = scene.add.text(0, 1, text, TEXT.display(opt.fontSize ?? 15)).setOrigin(0.5);
+    this.label = scene.add.text(0, 1, text, opt.fontFamily ? { ...TEXT.display(opt.fontSize ?? 15), fontFamily: opt.fontFamily, fontStyle: '700' } : TEXT.display(opt.fontSize ?? 15)).setOrigin(0.5);
     this.add([this.bg, this.label]);
     this.setSize(this.bw, this.bh);
     this.setInteractive({ useHandCursor: true });
