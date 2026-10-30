@@ -12,5 +12,7 @@ execSync('npx vite build --base=./ --outDir ../dist-portal --emptyOutDir', {
   stdio: 'inherit',
   env: { ...process.env, VITE_SERVER_URL: LIVE, VITE_PUBLIC_URL: LIVE },
 });
-execSync(`powershell -NoProfile -Command "Compress-Archive -Path dist-portal/* -DestinationPath orb-lancers-web.zip"`, { stdio: 'inherit' });
+// Python's zipfile writes forward-slash paths; PowerShell 5's Compress-Archive writes backslashes,
+// which portals cannot resolve (assets/... returns 404).
+execSync(`python -c "import zipfile,os;z=zipfile.ZipFile('orb-lancers-web.zip','w',zipfile.ZIP_DEFLATED);[z.write(os.path.join(r,f),os.path.relpath(os.path.join(r,f),'dist-portal').replace(os.sep,'/')) for r,_,fs in os.walk('dist-portal') for f in fs];z.close()"`, { stdio: 'inherit' });
 console.log('\nReady: orb-lancers-web.zip');
