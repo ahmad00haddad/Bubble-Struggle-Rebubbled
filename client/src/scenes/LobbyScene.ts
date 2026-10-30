@@ -3,7 +3,7 @@ import { LEVELS, type RoomInfo } from '@orb/shared';
 import { LANCER_FRAMES, TEXTURES, TEX_SCALE } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
 import { LanCoordinator } from '../lan/LanCoordinator';
-import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
+import { PLAYER_COLORS, PLAYER_CSS, VIEW, publicUrl } from '../config/clientConfig';
 import { EMOTE_GLYPHS } from '../config/social';
 import { getSettings } from '../config/settings';
 import type { NetSession } from '../networking/NetSession';
@@ -236,8 +236,7 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private inviteLink(): string {
-    const u = new URL(window.location.href);
-    u.search = '';
+    const u = new URL(publicUrl());
     u.searchParams.set('room', this.session.code);
     return u.toString();
   }

@@ -11,6 +11,7 @@
     "dev:worker": "node scripts/ensure-dist.mjs && wrangler dev --ip 0.0.0.0 --port 8787",
     "dev:client": "npm run dev -w client",
     "build": "npm run build -w client",
+    "build:itch": "node scripts/build-itch.mjs",
     "typecheck": "tsc -p shared --noEmit && tsc -p worker --noEmit && tsc -p client --noEmit && tsc -p tests --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

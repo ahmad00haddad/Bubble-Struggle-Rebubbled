@@ -5,7 +5,7 @@ import { ClipRecorder } from '../game/ClipRecorder';
 import { RELIC_INFO } from '../config/relics';
 import { orbColor, TEXTURES } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
-import { PLAYER_COLORS, PLAYER_CSS, VIEW } from '../config/clientConfig';
+import { PLAYER_COLORS, PLAYER_CSS, VIEW, publicUrl } from '../config/clientConfig';
 import { getSettings } from '../config/settings';
 import { POWERUP_INFO } from '../config/powerups';
 import { ArenaView } from '../entities/ArenaView';
@@ -825,7 +825,7 @@ export class GameScene extends Phaser.Scene {
 
   private copyDaily(v: ViewState, won: boolean): void {
     const score = v.players[0]?.score ?? 0;
-    const text = `Orb Lancers DAILY ${this.source.daily}: level ${v.levelIndex + 1}, ${score} pts ${won ? '✅' : '💀'}\n${location.origin}`;
+    const text = `Orb Lancers DAILY ${this.source.daily}: level ${v.levelIndex + 1}, ${score} pts ${won ? '✅' : '💀'}\n${publicUrl()}`;
     const shown = () => this.floatText(VIEW.width / 2, VIEW.arenaY + 60, 'SCORE COPIED, SEND IT TO YOUR FRIENDS', COLORS.good, 11);
     const failed = () => this.floatText(VIEW.width / 2, VIEW.arenaY + 60, text.split('\n')[0], COLORS.text, 9);
     if (navigator.clipboard) void navigator.clipboard.writeText(text).then(shown, failed);

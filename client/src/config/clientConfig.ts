@@ -40,6 +40,12 @@ export function serverUrl(): string {
   return window.location.origin;
 }
 
+/** Public page players should open (invite links, shared scores). Portal builds (itch.io...) point at the live site. */
+export function publicUrl(): string {
+  const env = import.meta.env.VITE_PUBLIC_URL as string | undefined;
+  return env ? env.replace(/\/+$/, '') + '/' : window.location.origin + window.location.pathname;
+}
+
 export function wsUrl(path: string): string {
   return serverUrl().replace(/^http/, 'ws') + path;
 }
