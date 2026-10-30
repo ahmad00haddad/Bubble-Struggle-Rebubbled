@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { AwardTally, BUBBLE_SIZES, EMOTES, INPUT, LEVELS, RELIC_KINDS, SHOVE, TICK_RATE, dailyChallenge, type TickedEvent } from '@orb/shared';
 import { AWARD_INFO, EMOTE_GLYPHS, blameLine } from '../config/social';
 import { ClipRecorder } from '../game/ClipRecorder';
+import { portal } from '../platform/portal';
 import { RELIC_INFO } from '../config/relics';
 import { orbColor, TEXTURES } from '../assets/textures';
 import { audio } from '../audio/AudioManager';
@@ -64,6 +65,9 @@ export class GameScene extends Phaser.Scene {
   private shovedAt: number[] = [];
   private feed: Phaser.GameObjects.Text[] = [];
   private clip: ClipRecorder | null = null;
+  /** Portal ads: one break ad per finished match; the daily score doubled by a watched ad. */
+  private matchAdDone = false;
+  private dailyX2 = false;
 
   constructor() {
     super(SCENES.game);
@@ -80,6 +84,8 @@ export class GameScene extends Phaser.Scene {
     this.lastPhase = '';
     this.prevBits = 0;
     this.tally = new AwardTally();
+    this.matchAdDone = false;
+    this.dailyX2 = false;
     this.shovedAt = [];
     this.feed = [];
 
@@ -183,6 +189,12 @@ export class GameScene extends Phaser.Scene {
 
     for (const e of this.source.drainEvents()) this.handleEvent(e, v);
     this.updatePhase(v);
+    portal.setPlaying(v.phase === 'playing' || v.phase === 'countdown');
+    if ((v.phase === 'gameOver' || v.phase === 'victory') && !this.matchAdDone) {
+      // A natural break: the match is over, nothing is lost by pausing here.
+      this.matchAdDone = true;
+      void portal.midgame((p) => audio.setHostMute('ad', p));
+    }
     this.overlayLive?.(v);
   }
 
@@ -606,6 +618,8 @@ export class GameScene extends Phaser.Scene {
     if ((this.lastPhase === 'gameOver' || this.lastPhase === 'victory') && v.phase === 'countdown') {
       this.tally = new AwardTally();
       this.shovedAt = [];
+      this.matchAdDone = false;
+      this.dailyX2 = false;
     }
     this.lastPhase = v.phase;
 
@@ -717,7 +731,10 @@ export class GameScene extends Phaser.Scene {
       const daily = this.source.daily;
       // Awards make the card taller; everything below the scores moves down by `dy`.
       const dy = social.length ? 8 + social.length * 21 : 0;
-      add(panel(this, cx, cy + dy / 2, 620, 380 + dy));
+      // Daily end card with something to double: one more row for the ad offer.
+      const adRow = !!daily && (this.dailyX2 || (portal.adsReady && (v.players[0]?.score ?? 0) > 0));
+      const extra = adRow ? 56 : 0;
+      add(panel(this, cx, cy + (dy + extra) / 2, 620, 380 + dy + extra));
       title(cy - 140, won ? 'VICTORY!' : 'GAME OVER', won ? COLORS.good : COLORS.bad, 32);
       const scoreLines = v.players
         .filter((p) => p.active || p.score > 0)
@@ -743,6 +760,10 @@ export class GameScene extends Phaser.Scene {
         btn(y0 + 64, 'PLAY AGAIN', () => this.source.requestRematch(), true);
         btn(y0 + 128, 'COPY SCORE', () => this.copyDaily(v, won), false, 220).setX(cx - 120);
         btn(y0 + 128, 'MAIN MENU', () => this.quitToMenu(), false, 220).setX(cx + 120);
+        if (!adRow) {
+          /* nothing to double */
+        } else if (this.dailyX2) body(y0 + 182, `AD BONUS: SCORE x2 = ${(v.players[0]?.score ?? 0) * 2}`, COLORS.good, 16);
+        else if (portal.adsReady) btn(y0 + 182, '📺 WATCH AD: DOUBLE SCORE', () => this.watchForDouble(), false, 340).setScale(0.85);
       } else {
         btn(y0 + 64, 'PLAY AGAIN', () => this.source.requestRematch(), true);
         btn(y0 + 128, 'MAIN MENU', () => this.quitToMenu());
@@ -823,8 +844,21 @@ export class GameScene extends Phaser.Scene {
     this.floatText(VIEW.width / 2, VIEW.arenaY + 60, ok ? 'CLIP SAVED 📹' : 'NOTHING RECORDED YET', ok ? COLORS.good : COLORS.textDim, 12);
   }
 
+  /** Rewarded ad on the daily end card: doubles the score you share (an end-of-game multiplier). */
+  private watchForDouble(): void {
+    void portal.rewarded((p) => audio.setHostMute('ad', p)).then((ok) => {
+      if (!ok || this.leaving) return;
+      this.dailyX2 = true;
+      if (this.lastView) {
+        this.overlayKey = '';
+        this.buildOverlay(this.computeOverlayKey(this.lastView), this.lastView);
+        this.overlayKey = this.computeOverlayKey(this.lastView);
+      }
+    });
+  }
+
   private copyDaily(v: ViewState, won: boolean): void {
-    const score = v.players[0]?.score ?? 0;
+    const score = (v.players[0]?.score ?? 0) * (this.dailyX2 ? 2 : 1);
     const text = `Orb Lancers DAILY ${this.source.daily}: level ${v.levelIndex + 1}, ${score} pts ${won ? '✅' : '💀'}\n${publicUrl()}`;
     const shown = () => this.floatText(VIEW.width / 2, VIEW.arenaY + 60, 'SCORE COPIED, SEND IT TO YOUR FRIENDS', COLORS.good, 11);
     const failed = () => this.floatText(VIEW.width / 2, VIEW.arenaY + 60, text.split('\n')[0], COLORS.text, 9);

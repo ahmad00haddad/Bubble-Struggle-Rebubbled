@@ -1,3 +1,4 @@
+import { portal } from '../platform/portal';
 import { getSettings } from '../config/settings';
 
 export type SoundKey =
@@ -67,10 +68,17 @@ export class AudioManager {
   }
   private tap: MediaStreamAudioDestinationNode | null = null;
 
+  /** Silenced by the host page: an ad playing, or the portal's own mute switch. */
+  private hostMute = { ad: false, portal: false };
+  setHostMute(kind: 'ad' | 'portal', on: boolean): void {
+    this.hostMute[kind] = on;
+    this.applyVolume();
+  }
+
   applyVolume(): void {
     if (!this.master) return;
     const s = getSettings();
-    this.master.gain.value = s.muted ? 0 : s.volume * 0.6;
+    this.master.gain.value = s.muted || this.hostMute.ad || this.hostMute.portal ? 0 : s.volume * 0.6;
   }
 
   async load(key: SoundKey, url: string): Promise<void> {
@@ -211,3 +219,4 @@ const RECIPES: Record<SoundKey, Recipe> = {
 };
 
 export const audio = new AudioManager();
+portal.onMute((m) => audio.setHostMute('portal', m));

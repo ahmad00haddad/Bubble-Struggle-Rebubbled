@@ -6,7 +6,7 @@
 export const GAME_NAME = 'ORB LANCERS';
 
 /** Shown on the main menu. Bump it with every change that gets deployed (see CLAUDE.md). */
-export const GAME_VERSION = '1.10';
+export const GAME_VERSION = '1.11';
 
 /** Fixed simulation rate (server and solo). */
 export const TICK_RATE = 30;
@@ -15,7 +15,7 @@ export const TICK_MS = 1000 / TICK_RATE;
 
 /** Snapshot cadence, in ticks. 1 = 30 Hz while things move (about 10-20 KB/s per client at 4 players). */
 export const SNAPSHOT_EVERY_TICKS = 1;
-/** Cadence while the world is frozen (countdown / pause). 8 → ~4 Hz. */
+/** Cadence while the world is frozen (countdown / pause). 8 â†’ ~4 Hz. */
 export const IDLE_SNAPSHOT_EVERY_TICKS = 8;
 
 /** Arena in simulation units (pixels). The floor is at y = height. */
@@ -114,14 +114,14 @@ export const RARE = {
   boomerangCharge: 15,
   /** Boomerang pierces: it ends after this many hits (up or down), or when it is back at the floor. */
   boomerangHits: 3,
-  /** Piñata Crate: most pickups an orb breaks into. */
+  /** PiÃ±ata Crate: most pickups an orb breaks into. */
   pinataMax: 3,
   /** Added to every level's drop pool (all levels, solo included). */
   drops: { wide: 1, shrink: 0.5, boots: 0.5, potato: 0.5, pinata: 0.5, chest: 0.5, decoy: 1, slow: 0.5, freeze: 0.5, magnet: 0.5, double: 0.5, boomerang: 0.5 },
   /** Teamwork crates: Baton always joins the pool in multiplayer, Flare only while a teammate is down. */
   mpDrops: { baton: 1 },
   flareWeight: 3,
-  /** What a Piñata gives (no pranks, no Decoy). */
+  /** What a PiÃ±ata gives (no pranks, no Decoy). */
   goodPool: { shield: 3, doubleHarpoon: 3, speedBoost: 3, extraTime: 2, extraLife: 1, anchor: 1, wide: 2, magnet: 1, slow: 1 },
 } as const;
 

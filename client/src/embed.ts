@@ -11,6 +11,7 @@ import { PowerUpsScene } from './scenes/PowerUpsScene';
 import { RelicsScene } from './scenes/RelicsScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { REGISTRY } from './scenes/keys';
+import { portal } from './platform/portal';
 import type { NetSession } from './networking/NetSession';
 
 export interface MountOptions {
@@ -44,6 +45,7 @@ function ensureFonts(): void {
 export function mountGame(parent: HTMLElement, opts: MountOptions = {}): GameHandle {
   setServerUrl(opts.serverUrl);
   ensureFonts();
+  void portal.init();
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
