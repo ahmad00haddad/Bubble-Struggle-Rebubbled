@@ -3,6 +3,7 @@ import { generateTextures } from '../assets/textures';
 import { VIEW } from '../config/clientConfig';
 import { TEXT } from '../ui/theme';
 import { SCENES } from './keys';
+import { portal } from '../platform/portal';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -27,9 +28,17 @@ export class BootScene extends Phaser.Scene {
     }
     generateTextures(this);
     t.destroy();
+    // CrazyGames: a friend's invite or the multiplayer landing page sends the player straight into a room.
+    await Promise.race([portal.init(), new Promise((r) => setTimeout(r, 4000))]);
+    portal.onJoinRoom((code) => {
+      const u = new URL(window.location.href);
+      u.searchParams.set('room', code);
+      window.location.href = u.toString();
+    });
     const params = new URLSearchParams(window.location.search);
-    const room = params.get('room');
-    if (room) this.scene.start(SCENES.online, { joinCode: room });
+    const room = params.get('room') ?? portal.inviteRoom();
+    if (room) this.scene.start(SCENES.online, { joinCode: room, auto: portal.inviteRoom() === room ? 'join' : undefined });
+    else if (portal.instantMultiplayer) this.scene.start(SCENES.online, { auto: 'create' });
     else this.scene.start(SCENES.menu);
   }
 }

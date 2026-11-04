@@ -8,6 +8,12 @@ interface CrazySdk {
   environment: 'local' | 'crazygames' | 'disabled';
   ad: { requestAd(type: 'midgame' | 'rewarded', cb: { adStarted?: () => void; adFinished?: () => void; adError?: (e: unknown) => void }): void };
   game: {
+    isInstantMultiplayer?: boolean;
+    inviteParams?: Record<string, string> | null;
+    inviteLink?(params: Record<string, string>): string;
+    updateRoom?(room: { roomId?: string; isJoinable?: boolean; inviteParams?: Record<string, string> }): void;
+    leftRoom?(): void;
+    addJoinRoomListener?(fn: (params: Record<string, string>) => void): void;
     gameplayStart(): void;
     gameplayStop(): void;
     loadingStart?(): void;
@@ -108,6 +114,33 @@ export const portal = {
     if (!sdk || performance.now() - lastMidgame < MIDGAME_GAP) return Promise.resolve(false);
     lastMidgame = performance.now();
     return request('midgame', onPause);
+  },
+  /** Room code from a CrazyGames invite (friend list, notification or invite link), if the game was opened by one. */
+  inviteRoom(): string | null {
+    return sdk?.game.inviteParams?.room ?? null;
+  },
+  /** CrazyGames wants this player sent straight into a new private room (multiplayer landing page). */
+  get instantMultiplayer(): boolean {
+    return !!sdk?.game.isInstantMultiplayer;
+  },
+  /** CrazyGames invite link for a room, or null outside CrazyGames. */
+  inviteLink(room: string): string | null {
+    try {
+      return sdk?.game.inviteLink?.({ room }) ?? null;
+    } catch {
+      return null;
+    }
+  },
+  /** Tell CrazyGames which room the player is in and whether friends can join it now. */
+  updateRoom(room: string, joinable: boolean): void {
+    sdk?.game.updateRoom?.({ roomId: room, isJoinable: joinable, inviteParams: { room } });
+  },
+  leftRoom(): void {
+    sdk?.game.leftRoom?.();
+  },
+  /** A friend accepted an invite while the game is already open. */
+  onJoinRoom(fn: (room: string) => void): void {
+    sdk?.game.addJoinRoomListener?.((p) => p?.room && fn(p.room));
   },
   /** Opt-in ad for a reward. Resolves true only when the ad played to the end. */
   rewarded(onPause: (paused: boolean) => void): Promise<boolean> {

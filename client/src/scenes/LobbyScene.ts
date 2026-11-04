@@ -5,6 +5,7 @@ import { audio } from '../audio/AudioManager';
 import { LanCoordinator } from '../lan/LanCoordinator';
 import { PLAYER_COLORS, PLAYER_CSS, VIEW, publicUrl } from '../config/clientConfig';
 import { EMOTE_GLYPHS } from '../config/social';
+import { portal } from '../platform/portal';
 import { getSettings } from '../config/settings';
 import type { NetSession } from '../networking/NetSession';
 import { Button, ButtonGroup } from '../ui/Button';
@@ -236,6 +237,8 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   private inviteLink(): string {
+    const cg = portal.inviteLink(this.session.code);
+    if (cg) return cg;
     const u = new URL(publicUrl());
     u.searchParams.set('room', this.session.code);
     return u.toString();

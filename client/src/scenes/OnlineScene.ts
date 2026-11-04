@@ -20,7 +20,8 @@ export class OnlineScene extends Phaser.Scene {
     super(SCENES.online);
   }
 
-  create(data: { joinCode?: string; message?: string }): void {
+  /** `auto`: CrazyGames sent the player here to join (invite) or create (instant multiplayer) a room without extra steps. */
+  create(data: { joinCode?: string; message?: string; auto?: 'join' | 'create' }): void {
     this.busy = false;
     this.cameras.main.fadeIn(200, 7, 10, 31);
     menuBackdrop(this);
@@ -45,6 +46,10 @@ export class OnlineScene extends Phaser.Scene {
     const code = data.joinCode ? normalizeRoomCode(data.joinCode) : null;
     if (code && !data.message && sessionStorage.getItem(`orb-lancers.token.${code}`) && getSettings().nickname) {
       this.time.delayedCall(250, () => void this.joinRoomFlow());
+    }
+    if (data.auto && !data.message) {
+      if (!this.nameEl.value.trim()) this.nameEl.value = `Lancer${Math.floor(100 + Math.random() * 900)}`;
+      this.time.delayedCall(250, () => void (data.auto === 'join' ? this.joinRoomFlow() : this.createRoomFlow()));
     }
     this.codeEl.addEventListener('keydown', (e) => e.key === 'Enter' && void this.joinRoomFlow());
     this.nameEl.addEventListener('keydown', (e) => e.key === 'Enter' && !this.codeEl.value && void this.createRoomFlow());

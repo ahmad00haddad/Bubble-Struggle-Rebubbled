@@ -9,6 +9,7 @@ import {
   type ServerMessage,
 } from '@orb/shared';
 import { wsUrl } from '../config/clientConfig';
+import { portal } from '../platform/portal';
 import type { Link, NetStatus } from './Link';
 import { NetClient } from './NetClient';
 import { Prediction } from './Prediction';
@@ -141,6 +142,7 @@ export class NetSession extends Phaser.Events.EventEmitter {
   /** Give up the seat for good and close. */
   leave(): void {
     this.left = true;
+    if (!this.peer) portal.leftRoom();
     this.client.send({ t: 'leave' });
     sessionStorage.removeItem(tokenKey(this.code));
     setRoomParam(null);
@@ -171,6 +173,8 @@ export class NetSession extends Phaser.Events.EventEmitter {
         break;
       case 'room':
         this.room = m;
+        // CrazyGames friends can join while a seat is free (drop-in works mid-match too).
+        if (!this.peer) portal.updateRoom(this.code, m.seats.some((s) => !s));
         this.emit('room', m);
         break;
       case 'level':
